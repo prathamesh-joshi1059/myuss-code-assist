@@ -14,7 +14,6 @@ import { PlytixProductModel } from '../models/plytix.model';
 @Injectable()
 export class PlytixService {
   private pubSubClient: PubSub;
-  private subscriptionName: string;
   private storage: Storage;
   private readonly logger: Logger;
   private readonly bucketName: string;
@@ -27,7 +26,6 @@ export class PlytixService {
     this.storage = new Storage();
     this.bucketName = this.configService.get<string>('GCS_BUCKET');
     this.whitelist = [this.configService.get<string>('WHITELIST_FEED_URL')];
-    this.subscriptionName = this.configService.get<string>('PUB_SUB_SUBSCRIPTION');
     this.listenForMessages();
   }
 
@@ -36,17 +34,15 @@ export class PlytixService {
       const { processed_products, feed_url, channel_processing_status } = plytixWebhookCallReqDto;
       const domain = new URL(feed_url).hostname;
       if (!this.isDomainWhitelisted(domain)) {
-        this.logger.error(`Error in plytixWebhookCall function: Domain for feed_url is not whitelisted: ${domain}`);
+        this.logger.error(`Domain for feed_url is not whitelisted: ${domain}`);
         return;
       }
       if (this.isRateLimited(feed_url)) {
-        this.logger.error(`Error in plytixWebhookCall function: Rate limit exceeded for plytixWebhookCall`);
+        this.logger.error(`Rate limit exceeded for plytixWebhookCall`);
         return;
       }
       if (channel_processing_status !== 'success' || processed_products <= 0) {
-        this.logger.error(
-          `Error in plytixWebhookCall function: CSV file not processed. processed_products: ${processed_products}, channel_processing_status: ${channel_processing_status}`,
-        );
+        this.logger.error(`CSV file not processed. processed_products: ${processed_products}, channel_processing_status: ${channel_processing_status}`);
         return;
       }
       const response = await axios.get(feed_url);
@@ -60,14 +56,11 @@ export class PlytixService {
           contentType: 'text/csv',
           resumable: false,
         });
-        this.logger.log(`In plytixWebhookCall function: csv file saved: ${filename}`);
-        return;
+        this.logger.log(`CSV file saved: ${filename}`);
       }
     } catch (error) {
       const functionName = error.stack.match(/at (.*) \(/)[1];
-      this.logger.error(
-        `Error in plytixWebhookCall function: Error = ${error.message} : detail error stack = ${functionName}`,
-      );
+      this.logger.error(`Error = ${error.message} : detail error stack = ${functionName}`);
       throw error;
     }
   }
@@ -120,12 +113,12 @@ export class PlytixService {
 
   private async listenForMessages() {
     try {
-      const subscription = this.pubSubClient.subscription(this.subscriptionName);
+      const subscription = this.pubSubClient.subscription(this.configService.get<string>('PUB_SUB_SUBSCRIPTION'));
       if (subscription) {
         subscription.on('message', (message) => this.messageHandler(message));
-        this.logger.log(`Listening for messages on ${this.subscriptionName}`);
+        this.logger.log(`Listening for messages on ${this.configService.get<string>('PUB_SUB_SUBSCRIPTION')}`);
       } else {
-        this.logger.error(`Subscription ${this.subscriptionName} not found`);
+        this.logger.error(`Subscription not found`);
       }
     } catch (error) {
       this.logger.error(`Error initializing subscription: ${error.message}`);
@@ -136,52 +129,44 @@ export class PlytixService {
     try {
       const messageBody = JSON.parse(message.data.toString());
       const fileName = messageBody.name;
-      this.logger.log(`In messageHandler function: detected file change in bucket: file name = ${fileName}`);
-      this.processPubsubMessage(fileName);
+      this.logger.log(`Detected file change in bucket: file name = ${fileName}`);
+      await this.processPubsubMessage(fileName);
       message.ack();
     } catch (error) {
-      this.logger.error(`Error in messageHandler function: Error processing message: ${error}`);
+      this.logger.error(`Error processing message: ${error}`);
     }
   }
-
 
   async processPubsubMessage(fileName: string) {
     try {
       const [fileBuffer] = await this.storage.bucket(this.bucketName).file(fileName).download();
       const fileContents = fileBuffer.toString('utf8');
-      const jsonData = await csvtojson().fromString(fileContents);
       await this.validateFeedData(fileContents);
+      const jsonData = await csvtojson().fromString(fileContents);
       const documents: { [id: string]: PlytixProductModel } = {};
       for (const record of jsonData) {
-        const modifiedJson = await this.removeSpacesFromKeys(record);
+        const modifiedJson = this.removeSpacesFromKeys(record);
         const mappedData = PlytixProductMapper.mapToPlytixProduct(modifiedJson);
         const plainMappedData = this.convertToPlainObject(mappedData);
         documents[plainMappedData.sku] = plainMappedData;
       }
 
       await this.firestoreService.batchUpsertDocuments<PlytixProductModel>('plytixProducts', documents);
-      this.logger.log(`In processPubsubMessage function: Processed all products from ${fileName} file`);
-      return;
+      this.logger.log(`Processed all products from ${fileName} file`);
     } catch (error) {
       const functionName = error.stack.match(/at (.*) \(/)[1];
-      this.logger.error(
-        `Error in processPubsubMessage function: Error in file ${fileName} from storage: Error = ${error.message} : detail error stack = ${functionName}`,
-      );
+      this.logger.error(`Error in file ${fileName}: Error = ${error.message} : detail error stack = ${functionName}`);
       throw error;
     }
   }
 
-  async removeSpacesFromKeys(obj) {
-    const newJson = {};
-
-    for (const [key, value] of Object.entries(obj)) {
-      const newKey = key.replace(/\s+/g, '');
-      newJson[newKey] = value;
-    }
-    return newJson;
+  private removeSpacesFromKeys(obj: Record<string, any>): Record<string, any> {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [key.replace(/\s+/g, ''), value])
+    );
   }
 
-  private convertToPlainObject(instance) {
+  private convertToPlainObject(instance: any): Record<string, any> {
     if (instance && typeof instance.toJSON === 'function') {
       return instance.toJSON();
     }
