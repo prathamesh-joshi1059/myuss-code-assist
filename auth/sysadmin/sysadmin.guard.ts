@@ -3,25 +3,17 @@ import { AuthGuard } from '@nestjs/passport';
 
 @Injectable()
 export class SysadminGuard extends AuthGuard('jwt') {
-  
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const parentCanActivate = (await super.canActivate(context)) as boolean; 
-    return parentCanActivate 
+    return (await super.canActivate(context)) as boolean;
   }
-  handleRequest(err, user, info) {
-    try {
-      if (err || !user || !user.scope) {
-        throw err || new UnauthorizedException();
-      }
-      const scopes = user.permissions;
-      // must include all:redis:sysadmin
-      if (!scopes.includes('all:redis:sysadmin')) {
-        throw new UnauthorizedException();
-      }
-      return user;
-    } catch (e) {
-      Logger.error(e);
+
+  handleRequest(err: any, user: any): any {
+    if (err || !user || !user.scope) {
+      throw err || new UnauthorizedException();
+    }
+    if (!user.permissions.includes('all:redis:sysadmin')) {
       throw new UnauthorizedException();
     }
+    return user;
   }
 }

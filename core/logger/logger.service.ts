@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import {ConfigService} from "@nestjs/config";
+import { ConfigService } from '@nestjs/config';
 
 export interface ILoggerService {
   info(value: any, ...rest: any[]): void;
@@ -9,12 +9,10 @@ export interface ILoggerService {
   debug(value: any, ...rest: any[]): void;
 }
 
-// TODO [MUS-269]: add logging to database.  maybe change to NestJS Logger
-// https://docs.nestjs.com/techniques/logger
 @Injectable()
 export class LoggerService implements ILoggerService {
-  environment = '';
-  logLevel = 'ERROR';
+  private readonly environment: string;
+  private readonly logLevel: string;
 
   constructor(private configService: ConfigService) {
     this.environment = this.configService.get('ENVIRONMENT');
@@ -22,40 +20,32 @@ export class LoggerService implements ILoggerService {
   }
 
   debug(value: any, ...rest: any[]): void {
-    if (this.logLevel === 'DEBUG')
-      console.info(value, rest);
+    if (this.logLevel === 'DEBUG') {
+      console.info(value, ...rest);
+    }
   }
 
   info(value: any, ...rest: any[]): void {
-    if (!this.isProduction() || ['INFO', 'DEBUG'].includes(this.logLevel))
-      console.info(value, rest);
+    if (!this.isProduction() || ['INFO', 'DEBUG'].includes(this.logLevel)) {
+      console.info(value, ...rest);
+    }
   }
 
-  log(value: any, ...rest: any[]): void {  
-      console.log(value, rest);
+  log(value: any, ...rest: any[]): void {
+    console.log(value, ...rest);
   }
 
   warn(value: any, ...rest: any[]): void {
     if (!this.isProduction() || ['WARN', 'INFO', 'DEBUG'].includes(this.logLevel)) {
-      console.warn(value, rest);
-    } 
+      console.warn(value, ...rest);
+    }
   }
 
   error(value: any, ...rest: any[]): void {
-    console.error(value, rest);
+    console.error(value, ...rest);
   }
 
-  // dummy method to satisfy interface
-  doNotLog(value: any) {
-    return;
-  }
-
-  public isProduction() {
+  private isProduction(): boolean {
     return this.environment === 'production';
-  }
-
-  private trimMessage(message: string): string {
-    let length = 4000;
-    return message.substring(0,length);
   }
 }

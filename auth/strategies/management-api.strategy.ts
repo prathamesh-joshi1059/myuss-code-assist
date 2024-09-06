@@ -5,7 +5,8 @@ import { passportJwtSecret } from 'jwks-rsa';
 
 @Injectable()
 export class ManagementAPIStrategy extends PassportStrategy(Strategy, 'auth0-management-api') {
-  private readonly logger = new Logger(this.name);
+  private readonly logger = new Logger(ManagementAPIStrategy.name);
+
   constructor() {
     super({
       secretOrKeyProvider: passportJwtSecret({
@@ -23,7 +24,6 @@ export class ManagementAPIStrategy extends PassportStrategy(Strategy, 'auth0-man
 
   validate(payload: any) {
     this.logger.debug(`validate payload: ${JSON.stringify(payload)}`);
-    this.logger.debug(`payload: ${JSON.stringify(payload)}`);
     return payload;
   }
 }

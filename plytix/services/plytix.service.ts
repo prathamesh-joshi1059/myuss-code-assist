@@ -35,24 +35,25 @@ export class PlytixService {
     try {
       const { processed_products, feed_url, channel_processing_status } = plytixWebhookCallReqDto;
       const domain = new URL(feed_url).hostname;
+
       if (!this.isDomainWhitelisted(domain)) {
-        this.logger.error(`Error in plytixWebhookCall function: Domain for feed_url is not whitelisted: ${domain}`);
+        this.logger.error(`Domain for feed_url is not whitelisted: ${domain}`);
         return;
       }
       if (this.isRateLimited(feed_url)) {
-        this.logger.error(`Error in plytixWebhookCall function: Rate limit exceeded for plytixWebhookCall`);
+        this.logger.error('Rate limit exceeded for plytixWebhookCall');
         return;
       }
       if (channel_processing_status !== 'success' || processed_products <= 0) {
         this.logger.error(
-          `Error in plytixWebhookCall function: CSV file not processed. processed_products: ${processed_products}, channel_processing_status: ${channel_processing_status}`,
+          `CSV file not processed. processed_products: ${processed_products}, channel_processing_status: ${channel_processing_status}`,
         );
         return;
       }
+
       const response = await axios.get(feed_url);
       const csvData = response.data;
-      const timestamp = new Date().toISOString();
-      const filename = `plytix-feed-${timestamp}.csv`;
+      const filename = `plytix-feed-${new Date().toISOString()}.csv`;
       const validationPassed = await this.validateFeedData(csvData);
       if (validationPassed) {
         const file = this.storage.bucket(this.bucketName).file(filename);
@@ -60,14 +61,10 @@ export class PlytixService {
           contentType: 'text/csv',
           resumable: false,
         });
-        this.logger.log(`In plytixWebhookCall function: csv file saved: ${filename}`);
-        return;
+        this.logger.log(`CSV file saved: ${filename}`);
       }
     } catch (error) {
-      const functionName = error.stack.match(/at (.*) \(/)[1];
-      this.logger.error(
-        `Error in plytixWebhookCall function: Error = ${error.message} : detail error stack = ${functionName}`,
-      );
+      this.logger.error(`Error in plytixWebhookCall: ${error.message}`);
       throw error;
     }
   }
@@ -79,7 +76,7 @@ export class PlytixService {
   private isRateLimited(feed_url: string): boolean {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const limitKey = feed_url + today.toISOString();
+    const limitKey = `${feed_url}${today.toISOString()}`;
 
     if (!this.limits[limitKey]) {
       this.limits[limitKey] = { count: 0, lastReset: today };
@@ -94,11 +91,8 @@ export class PlytixService {
   async validateFeedData(csvData: string): Promise<boolean> {
     try {
       const jsonData = await csvtojson().fromString(csvData);
-      if (!jsonData.length) {
+      if (!jsonData.length || (jsonData.length === 1 && Object.keys(jsonData[0]).every((key) => key.trim() === ''))) {
         throw new Error('No data found in the CSV file.');
-      }
-      if (jsonData.length === 1 && Object.keys(jsonData[0]).every((key) => key.trim() === '')) {
-        throw new Error('No data found in the CSV file, only headers.');
       }
       const itemsWithoutSKU = jsonData.filter((item) => !item.SKU);
       if (itemsWithoutSKU.length) {
@@ -121,12 +115,8 @@ export class PlytixService {
   private async listenForMessages() {
     try {
       const subscription = this.pubSubClient.subscription(this.subscriptionName);
-      if (subscription) {
-        subscription.on('message', (message) => this.messageHandler(message));
-        this.logger.log(`Listening for messages on ${this.subscriptionName}`);
-      } else {
-        this.logger.error(`Subscription ${this.subscriptionName} not found`);
-      }
+      subscription.on('message', (message) => this.messageHandler(message));
+      this.logger.log(`Listening for messages on ${this.subscriptionName}`);
     } catch (error) {
       this.logger.error(`Error initializing subscription: ${error.message}`);
     }
@@ -136,22 +126,22 @@ export class PlytixService {
     try {
       const messageBody = JSON.parse(message.data.toString());
       const fileName = messageBody.name;
-      this.logger.log(`In messageHandler function: detected file change in bucket: file name = ${fileName}`);
-      this.processPubsubMessage(fileName);
+      this.logger.log(`Detected file change in bucket: file name = ${fileName}`);
+      await this.processPubsubMessage(fileName);
       message.ack();
     } catch (error) {
-      this.logger.error(`Error in messageHandler function: Error processing message: ${error}`);
+      this.logger.error(`Error processing message: ${error.message}`);
     }
   }
-
 
   async processPubsubMessage(fileName: string) {
     try {
       const [fileBuffer] = await this.storage.bucket(this.bucketName).file(fileName).download();
       const fileContents = fileBuffer.toString('utf8');
-      const jsonData = await csvtojson().fromString(fileContents);
       await this.validateFeedData(fileContents);
+      const jsonData = await csvtojson().fromString(fileContents);
       const documents: { [id: string]: PlytixProductModel } = {};
+
       for (const record of jsonData) {
         const modifiedJson = await this.removeSpacesFromKeys(record);
         const mappedData = PlytixProductMapper.mapToPlytixProduct(modifiedJson);
@@ -160,31 +150,22 @@ export class PlytixService {
       }
 
       await this.firestoreService.batchUpsertDocuments<PlytixProductModel>('plytixProducts', documents);
-      this.logger.log(`In processPubsubMessage function: Processed all products from ${fileName} file`);
-      return;
+      this.logger.log(`Processed all products from ${fileName}`);
     } catch (error) {
-      const functionName = error.stack.match(/at (.*) \(/)[1];
-      this.logger.error(
-        `Error in processPubsubMessage function: Error in file ${fileName} from storage: Error = ${error.message} : detail error stack = ${functionName}`,
-      );
+      this.logger.error(`Error in processing file ${fileName}: ${error.message}`);
       throw error;
     }
   }
 
-  async removeSpacesFromKeys(obj) {
-    const newJson = {};
-
+  async removeSpacesFromKeys(obj: Record<string, any>): Promise<Record<string, any>> {
+    const newJson: Record<string, any> = {};
     for (const [key, value] of Object.entries(obj)) {
-      const newKey = key.replace(/\s+/g, '');
-      newJson[newKey] = value;
+      newJson[key.replace(/\s+/g, '')] = value;
     }
     return newJson;
   }
 
-  private convertToPlainObject(instance) {
-    if (instance && typeof instance.toJSON === 'function') {
-      return instance.toJSON();
-    }
-    return { ...instance };
+  private convertToPlainObject(instance: any): Record<string, any> {
+    return instance && typeof instance.toJSON === 'function' ? instance.toJSON() : { ...instance };
   }
 }

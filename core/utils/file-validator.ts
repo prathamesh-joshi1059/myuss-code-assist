@@ -2,16 +2,14 @@ import { FileValidator } from "@nestjs/common";
 import { allowedExtensions, fileSizeLimit } from "../../myuss/services/quote/constants";
 
 export class FileIsDefinedValidator extends FileValidator {
-    constructor() { 
+    constructor() {
         super({});
     }
-    isValid(file?: Object): boolean {
-        if(file['size'] > fileSizeLimit && !allowedExtensions.includes(file['mimetype'])){
-            return false;
-        }else{
-            return !! file;
-        }
+
+    isValid(file?: Record<string, any>): boolean {
+        return !!file && (file['size'] <= fileSizeLimit || allowedExtensions.includes(file['mimetype']));
     }
+
     buildErrorMessage(): string {
         return "File is not defined";
     }

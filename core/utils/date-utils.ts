@@ -11,16 +11,15 @@ export class DateUtils {
   public static addDays(date: Date, days: number): Date {
     const result = new Date(date);
     result.setDate(result.getDate() + days);
-    
     return result;
   }
 
-  static getDateStringForToday() {
+  public static getDateStringForToday(): string {
     return new Date().toISOString().split('T')[0];
   }
 
-  static getDateStringForDaysFromToday(days: number): string {
-    return new Date(new Date().getTime() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  public static getDateStringForDaysFromToday(days: number): string {
+    return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   }
 
   public static formatDateAsSalesforceString(date: Date): string {
@@ -33,7 +32,8 @@ export class DateUtils {
   public static padNumber(num: number): string {
     return num.toString().padStart(2, '0');
   }
-  public static getDateInMyUssDashboardFormat(date: Date) : string{
+
+  public static getDateInMyUssDashboardFormat(date: Date): string {
     return date.toLocaleDateString('en-US', {
       month: '2-digit',
       day: '2-digit',

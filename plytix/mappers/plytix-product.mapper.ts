@@ -9,29 +9,9 @@ export class PlytixProductMapper {
     product.lastModified = data.Lastmodified;
     product.status = data.Status;
     product.created = data.Created;
-
-    let thumbnailArray = [];
-    if (data.Thumbnail != undefined && data.Thumbnail != '') {
-      data.Thumbnail.split(',').map((thumbnail) => {
-        thumbnailArray.push(thumbnail);
-      });
-    }
-    product.thumbnail = thumbnailArray;
-    let assetArray = [];
-    if (data.Assets != undefined && data.Assets != '') {
-      data.Assets.split(',').map((asset) => {
-        assetArray.push(asset);
-      });
-    }
-    product.assets = assetArray;
-
-    let imageGalleryArr = [];
-    if (data.ImageGallery != undefined && data.ImageGallery != '') {
-      data.ImageGallery.split(',').map((imageGallery) => {
-        imageGalleryArr.push(imageGallery);
-      });
-    }
-    product.imageGallery = imageGalleryArr;
+    product.thumbnail = this.splitToArray(data.Thumbnail);
+    product.assets = this.splitToArray(data.Assets);
+    product.imageGallery = this.splitToArray(data.ImageGallery);
     product.categories = data.Categories;
     product.label = data.Label;
     product.sku = data.SKU;
@@ -48,6 +28,11 @@ export class PlytixProductMapper {
     product.optionalFeatures = data.Optionalfeatures;
     product.metaDescription = data.MetaDescription;
     product.customDescription = data.CustomDescription;
+
     return product;
+  }
+
+  private static splitToArray(value: string | undefined): string[] {
+    return value ? value.split(',') : [];
   }
 }

@@ -3,97 +3,97 @@ import { IsString, IsDefined } from 'class-validator';
 export class ValidateFeedDataDto {
   @IsString()
   @IsDefined()
-  Family: string;
+  family: string;
 
   @IsString()
   @IsDefined()
-  GTIN: string;
+  gtin: string;
 
   @IsString()
   @IsDefined()
-  Status: string;
+  status: string;
 
   @IsString()
   @IsDefined()
-  Created: string;
+  created: string;
 
   @IsString()
   @IsDefined()
-  'Last modified': string;
+  lastModified: string;
 
   @IsString()
   @IsDefined()
-  Thumbnail: string;
+  thumbnail: string;
 
   @IsString()
   @IsDefined()
-  Assets: string;
+  assets: string;
 
   @IsString()
   @IsDefined()
-  Categories: string;
+  categories: string;
 
   @IsString()
   @IsDefined()
-  Variations: string;
+  variations: string;
 
   @IsString()
   @IsDefined()
-  'Variation of': string;
+  variationOf: string;
 
   @IsString()
   @IsDefined()
-  Label: string;
+  label: string;
 
   @IsString()
   @IsDefined()
-  SKU: string;
+  sku: string;
 
   @IsString()
   @IsDefined()
-  'Product ID': string;
+  productId: string;
 
   @IsString()
   @IsDefined()
-  'Product Type': string;
+  productType: string;
 
   @IsString()
   @IsDefined()
-  'Test Completeness': string;
+  testCompleteness: string;
 
   @IsString()
   @IsDefined()
-  'Optional features': string;
+  optionalFeatures: string;
 
   @IsString()
   @IsDefined()
-  'Meta Description': string;
+  metaDescription: string;
 
   @IsString()
   @IsDefined()
-  'Image Gallery': string;
+  imageGallery: string;
 
   @IsString()
   @IsDefined()
-  Features: string;
+  features: string;
 
   @IsString()
   @IsDefined()
-  Excerpt: string;
+  excerpt: string;
 
   @IsString()
   @IsDefined()
-  Description: string;
+  description: string;
 
   @IsString()
   @IsDefined()
-  'delivery_pickup_desc': string;
+  deliveryPickupDesc: string;
 
   @IsString()
   @IsDefined()
-  'Custom Description': string;
+  customDescription: string;
 
   @IsString()
   @IsDefined()
-  'clean_sanitary_desc': string;
+  cleanSanitaryDesc: string;
 }

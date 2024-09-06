@@ -21,7 +21,6 @@ export class PlytixProductModel {
   excerpt: string;
   description: string;
   deliveryPickupDesc: string;
-  customDescription: string;
   cleanSanitaryDesc: string;
 
   constructor(init?: Partial<PlytixProductModel>) {

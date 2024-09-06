@@ -5,7 +5,8 @@ import { passportJwtSecret } from 'jwks-rsa';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
-  private readonly logger = new Logger(this.name);
+  private readonly logger = new Logger(JwtStrategy.name);
+
   constructor() {
     super({
       secretOrKeyProvider: passportJwtSecret({
@@ -14,7 +15,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
         jwksRequestsPerMinute: 5,
         jwksUri: `https://${process.env.AUTH0_DOMAIN}/.well-known/jwks.json`,
       }),
-
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       audience: process.env.AUTH0_AUDIENCE,
       issuer: `https://${process.env.AUTH0_DOMAIN}/`,

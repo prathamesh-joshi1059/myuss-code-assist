@@ -38,15 +38,14 @@ import { PlytixModule } from './plytix/plytix.module';
       isGlobal: true,
       store: redisStore,
       socket: {
-        host: process.env.REDISHOST || '127.0.0.1', //default host
-        port: Number.parseInt(process.env.REDISPORT) || 6379, //default port
+        host: process.env.REDISHOST || '127.0.0.1',
+        port: Number.parseInt(process.env.REDISPORT) || 6379,
         connectTimeout: 10000,
       },
     }),
     SidetradeModule,
     SfdcModule,
   ],
-
   controllers: [AppController],
   providers: [
     AppService,
