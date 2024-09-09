@@ -13,21 +13,16 @@ import { PlytixProductModel } from '../models/plytix.model';
 
 @Injectable()
 export class PlytixService {
-  private pubSubClient: PubSub;
-  private subscriptionName: string;
-  private storage: Storage;
-  private readonly logger: Logger;
+  private pubSubClient = new PubSub();
+  private storage = new Storage();
+  private readonly logger = new Logger(PlytixService.name);
   private readonly bucketName: string;
   private whitelist: string[];
   private limits: { [key: string]: { count: number; lastReset: Date } } = {};
 
   constructor(private firestoreService: FirestoreService, private configService: ConfigService) {
-    this.logger = new Logger(PlytixService.name);
-    this.pubSubClient = new PubSub();
-    this.storage = new Storage();
     this.bucketName = this.configService.get<string>('GCS_BUCKET');
     this.whitelist = [this.configService.get<string>('WHITELIST_FEED_URL')];
-    this.subscriptionName = this.configService.get<string>('PUB_SUB_SUBSCRIPTION');
     this.listenForMessages();
   }
 
@@ -119,9 +114,9 @@ export class PlytixService {
 
   private async listenForMessages(): Promise<void> {
     try {
-      const subscription = this.pubSubClient.subscription(this.subscriptionName);
+      const subscription = this.pubSubClient.subscription(this.configService.get<string>('PUB_SUB_SUBSCRIPTION'));
       subscription.on('message', (message) => this.messageHandler(message));
-      this.logger.log(`Listening for messages on ${this.subscriptionName}`);
+      this.logger.log(`Listening for messages`);
     } catch (error) {
       this.logger.error(`Error initializing subscription: ${error.message}`);
     }
