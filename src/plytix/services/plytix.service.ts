@@ -143,24 +143,22 @@ export class PlytixService {
     }
   }
 
-<<<<<<< HEAD
-  appropriate;
-
-  async processPubsubMessage(fileName: string) {
-=======
   async processPubsubMessage(fileName: string): Promise<void> {
->>>>>>> a694d17279c14dcfb2d1f3153366509f482cf352
     try {
       const [fileBuffer] = await this.storage.bucket(this.bucketName).file(fileName).download();
       const fileContents = fileBuffer.toString('utf8');
-      await this.validateFeedData(fileContents);
       const jsonData = await csvtojson().fromString(fileContents);
+      await this.validateFeedData(fileContents);
       const documents: { [id: string]: PlytixProductModel } = {};
       for (const record of jsonData) {
         const modifiedJson = await this.removeSpacesFromKeys(record);
         const mappedData = PlytixProductMapper.mapToPlytixProduct(modifiedJson);
-        const plainMappedData = this.convertToPlainObject(mappedData);
-        documents[plainMappedData.sku] = plainMappedData;
+        const plainMappedData = this.convertToPlainObject(mappedData) as PlytixProductModel;
+        if ('sku' in plainMappedData) {
+          documents[plainMappedData.sku] = plainMappedData;
+        } else {
+          this.logger.warn(`Skipping record without SKU: ${JSON.stringify(plainMappedData)}`);
+        }
       }
 
       await this.firestoreService.batchUpsertDocuments<PlytixProductModel>('plytixProducts', documents);
@@ -173,7 +171,6 @@ export class PlytixService {
       throw error;
     }
   }
-
   private async removeSpacesFromKeys(obj: Record<string, any>): Promise<Record<string, any>> {
     const newJson: Record<string, any> = {};
     for (const [key, value] of Object.entries(obj)) {
