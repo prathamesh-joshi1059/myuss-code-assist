@@ -178,10 +178,7 @@ export class PlytixService {
   }
 
   private convertToPlainObject(instance: any): object {
-    if (instance && typeof instance.toJSON === 'function') {
-      return instance.toJSON();
-    }
-    return { ...instance };
+    return instance && typeof instance.toJSON === 'function' ? instance.toJSON() : { ...instance };
   }
 
   private extractFunctionNameFromError(error: Error): string {
