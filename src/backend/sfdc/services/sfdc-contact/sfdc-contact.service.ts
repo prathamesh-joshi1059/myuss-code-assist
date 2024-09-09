@@ -8,17 +8,15 @@ export class SfdcContactService {
   constructor(private salesforceBaseService: SfdcBaseService, private logger: LoggerService) {}
 
   async updateContacts(contactsToUpdate: Contact[]): Promise<any> {
-    const response = await this.salesforceBaseService.updateSObjects('Contact', contactsToUpdate);
-    return response;
+    return this.salesforceBaseService.updateSObjects('Contact', contactsToUpdate);
   }
 
   async insertContacts(contactsToInsert: Contact[]): Promise<any> {
-    const response = await this.salesforceBaseService.createSObjects('Contact', contactsToInsert, 25);
-    return response;
+    return this.salesforceBaseService.createSObjects('Contact', contactsToInsert, 25);
   }
 
-  async getContactsForAccount(accountId: string) {
-    const contact: Contact[] = await this.salesforceBaseService.conn
+  async getContactsForAccount(accountId: string): Promise<Contact[]> {
+    return this.salesforceBaseService.conn
       .sobject('AccountContactRelation')
       .select(
         'Id, AccountId, Account.USF_Account_Number__c, Roles, ContactId, Contact.FirstName, Contact.LastName, Contact.Email, Contact.Phone, Contact.Ext__c, IsActive, Contact.USF_Inactive__c',
@@ -26,29 +24,24 @@ export class SfdcContactService {
       .where({ AccountId: accountId })
       .limit(500)
       .execute();
-    return contact;
   }
 
-  public async getContactsByAccountNumbers(accountNumbers: string[]) {
-    let accountNumbersSoql = 'USF_Inactive__c = false AND Account.USF_Account_Number__c IN (';
-    accountNumbers.forEach((accountNumber) => {
-      accountNumbersSoql += `'${this.salesforceBaseService.escapeSOQLString(accountNumber)}',`;
-    });
-    accountNumbersSoql = accountNumbersSoql.slice(0, -1); // remove trailing comma
-    accountNumbersSoql += ')';
-    const contacts = await this.salesforceBaseService.conn
+  public async getContactsByAccountNumbers(accountNumbers: string[]): Promise<Contact[]> {
+    const accountNumbersSoql = `USF_Inactive__c = false AND Account.USF_Account_Number__c IN (${accountNumbers
+      .map((accountNumber) => `'${this.salesforceBaseService.escapeSOQLString(accountNumber)}'`)
+      .join(',')})`;
+      
+    return this.salesforceBaseService.conn
       .sobject('Contact')
       .select('Id, Name, Email, CreatedDate, AccountId')
       .where(accountNumbersSoql)
       .execute({ autoFetch: true, maxFetch: 100000 });
-    return contacts;
   }
 
-  async getContactByEmail(email: string) {
+  async getContactByEmail(email: string): Promise<any> {
     const safeEmail = this.salesforceBaseService.escapeSOQLString(email);
     const query = `SELECT Id, FirstName, LastName, Email, Phone, MailingStreet, MailingCity, MailingState, 
     MailingPostalCode, MailingCountry, USS_Portal_User__r.Auth0_Id__c FROM Contact WHERE Email = '${safeEmail}'`;
-    const response = await this.salesforceBaseService.getQuery(query);
-    return response;
+    return this.salesforceBaseService.getQuery(query);
   }
 }

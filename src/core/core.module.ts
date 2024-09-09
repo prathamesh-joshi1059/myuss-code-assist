@@ -3,15 +3,13 @@ import { LoggerService } from './logger/logger.service';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { CacheService } from './cache/cache.service';
-import { TrackUserActionService } from './track-user-action/track-user-action-service';
+import { TrackUserActionService } from './track-user-action/track-user-action.service';
 import { SfdcPortalActionService } from '../backend/sfdc/services/sfdc-portal-action/sfdc-portal-action.service';
 import { SfdcBaseService } from '../backend/sfdc/services/sfdc-base/sfdc-base.service';
-import {ThrottlerExceptionFilter} from './utils/rate-limiting-exception/throttler-exception-filter';
+import { ThrottlerExceptionFilter } from './utils/rate-limiting-exception/throttler-exception-filter';
 
 @Module({
-  imports: [
-    HttpModule
-  ],
+  imports: [HttpModule],
   providers: [
     LoggerService,
     ConfigService,
@@ -19,7 +17,7 @@ import {ThrottlerExceptionFilter} from './utils/rate-limiting-exception/throttle
     TrackUserActionService,
     SfdcPortalActionService,
     SfdcBaseService,
-    ThrottlerExceptionFilter
+    ThrottlerExceptionFilter,
   ],
   exports: [
     LoggerService,
@@ -29,7 +27,7 @@ import {ThrottlerExceptionFilter} from './utils/rate-limiting-exception/throttle
     TrackUserActionService,
     SfdcPortalActionService,
     SfdcBaseService,
-    ThrottlerExceptionFilter
-    ],
+    ThrottlerExceptionFilter,
+  ],
 })
 export class CoreModule {}

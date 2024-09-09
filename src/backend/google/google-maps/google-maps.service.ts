@@ -2,8 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { AddressType, Client, GeocodeResponse } from '@googlemaps/google-maps-services-js';
 import { LoggerService } from '../../../core/logger/logger.service';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
-
 
 @Injectable()
 export class GoogleMapsService {
@@ -15,19 +13,19 @@ export class GoogleMapsService {
     this.apiKey = this.configService.get<string>('GOOGLE_MAPS_API_KEY');
   }
 
-  public async getStateCodeByZip(zip: string): Promise<string> {
+  public async getStateCodeByZip(zip: string): Promise<string | null> {
     const resp = await this.getGeocodeByAddress(zip);
     this.logger.info('getStateByZip', resp.data);
     try {
-      const state = resp.data.results[0].address_components.find(component => component.types.includes(<AddressType>'administrative_area_level_1')).short_name;
-      return state;
+      const state = resp.data.results[0].address_components.find(component => component.types.includes(<AddressType>'administrative_area_level_1'))?.short_name;
+      return state || null;
     } catch (err) {
       this.logger.error(err);
       return null;
     }
   }
 
-  public async getStateNameByZip(zip: string): Promise<string> {
+  public async getStateNameByZip(zip: string): Promise<string | null> {
     try {
       const resp = await this.getGeocodeByAddress(zip);
       this.logger.info('getStateByZip', resp.data);
@@ -35,7 +33,7 @@ export class GoogleMapsService {
         return null;
       }
       const state = resp.data.results[0].address_components?.find(component => component.types.includes(<AddressType>'administrative_area_level_1'))?.long_name;
-      return state;
+      return state || null;
     } catch (err) {
       this.logger.error(err);
       return null;
@@ -43,44 +41,42 @@ export class GoogleMapsService {
   }
 
   public async getGeocodeByAddress(address: string): Promise<GeocodeResponse> {
-    // restrict to US addresses
     return this.client.geocode({
       params: {
         key: this.apiKey,
         address: address,
         components: {
-          country: 'US'
-        }
-      }
+          country: 'US',
+        },
+      },
     });
   }
 
-  public async getTimeZoneByAddress(siteAddress:string) {
-    const apiKey = this.apiKey;
+  public async getTimeZoneByAddress(siteAddress: string): Promise<string | null> {
     if (!siteAddress) {
       return null;
     }
     try {
-      const geocodeResponse = await this.getGeocodeByAddress(siteAddress)
+      const geocodeResponse = await this.getGeocodeByAddress(siteAddress);
       if (geocodeResponse.data.status !== 'OK') {
-        return null
+        return null;
       }
 
       const location = geocodeResponse.data?.results[0]?.geometry?.location;
       const timestamp = Math.floor(Date.now() / 1000);
       const timeZoneResponse = await this.client.timezone({
-           params: {
+        params: {
           location: `${location?.lat},${location?.lng}`,
           timestamp: timestamp,
-          key: apiKey,
-        }
-      })
+          key: this.apiKey,
+        },
+      });
 
-      if (timeZoneResponse.data.status != 'OK') {
-        return null
+      if (timeZoneResponse.data.status !== 'OK') {
+        return null;
       }
 
-      const timeZone = timeZoneResponse?.data?.timeZoneName;
+      const timeZone = timeZoneResponse.data?.timeZoneName;
       const resultedTimeZone = (() => {
         switch (timeZone) {
           case 'Central Daylight Time':
@@ -101,8 +97,7 @@ export class GoogleMapsService {
       })();
       return resultedTimeZone;
     } catch (error) {
-      return null
+      return null;
     }
   }
 }
-

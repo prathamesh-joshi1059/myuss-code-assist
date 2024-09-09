@@ -12,21 +12,17 @@ import { ThrottlerExceptionFilter } from '../../../core/utils/rate-limiting-exce
 })
 @UseGuards(AdminGuard)
 export class BranchesController {
-
   constructor(private logger: LoggerService, private branchService: BranchService) {}
 
   @Get()
   async getBranches(@Query('eligible') eligible: boolean): Promise<Branch[]> {
-    if (eligible) {
-      const branchIds = await this.branchService.getEligibleBranches();
-      return branchIds;
-    }
-    const branches = await this.branchService.getBranches();
-    return branches;
+    return eligible 
+      ? this.branchService.getEligibleBranches() 
+      : this.branchService.getBranches();
   }
 
   @Get(':id')
-  async getBranchById(@Param('id') id: string) {
+  async getBranchById(@Param('id') id: string): Promise<Branch> {
     const branch = await this.branchService.getBranchById(id);
     if (!branch) {
       throw new HttpException('Branch not found', 404);
@@ -35,9 +31,7 @@ export class BranchesController {
   }
 
   @Post('refresh')
-  async refreshBranchesFromSalesforce() {
-    return await this.branchService.refreshBranchesFromSalesforce();
+  async refreshBranchesFromSalesforce(): Promise<void> {
+    await this.branchService.refreshBranchesFromSalesforce();
   }
-
-
 }

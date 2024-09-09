@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { SFMC_SidetradeMigratedUser } from '../../models/sfmc-sidetrade-user-migration';
 import { SfmcBaseService } from '../sfmc-base/sfmc-base.service';
 import { LoggerService } from '../../../../core/logger/logger.service';
-import { SidetradeCreateUserDto } from '../../../../sidetrade/models/sidetrade-create-user.dto';
 import { SFMC_TransactionalMessageRecipient, SFMC_TransactionalMessageResponse } from '../../models/sfmc.model';
 
 @Injectable()
@@ -20,7 +19,7 @@ export class SFMC_SidetradeUserMigrationService {
     this.sidetradeNewUserEventKey = this.configService.get<string>('SFMC_ST_NEW_USER_EVENT_KEY');
   }
 
-  async postMigratedUsers(users: SFMC_SidetradeMigratedUser[]) {
+  async postMigratedUsers(users: SFMC_SidetradeMigratedUser[]): Promise<void> {
     if (!this.sidetradeMigratedUsersDEKey) {
       this.logger.error('SFMC_ST_MIGRATION_DE_KEY is not set');
       return;
@@ -29,10 +28,10 @@ export class SFMC_SidetradeUserMigrationService {
       this.logger.info('No users to post to SFMC');
       return;
     }
-    return await this.sfmcBaseService.upsertDataExtenstionRowsSync(this.sidetradeMigratedUsersDEKey, users, ['email']);
+    await this.sfmcBaseService.upsertDataExtenstionRowsSync(this.sidetradeMigratedUsersDEKey, users, ['email']);
   }
 
-  async triggerNewUserEmails(users: SFMC_SidetradeMigratedUser[]): Promise<SFMC_TransactionalMessageResponse> {
+  async triggerNewUserEmails(users: SFMC_SidetradeMigratedUser[]): Promise<SFMC_TransactionalMessageResponse | void> {
     if (!this.sidetradeNewUserEventKey) {
       this.logger.error('SFMC_ST_NEW_USER_EVENT_KEY is not set');
       return;
@@ -41,8 +40,8 @@ export class SFMC_SidetradeUserMigrationService {
       this.logger.info('No users to trigger new user email');
       return;
     }
-    const requests: SFMC_TransactionalMessageRecipient[] = [];
-    users.forEach((user) => {
+
+    const requests: SFMC_TransactionalMessageRecipient[] = users.map((user) => {
       const attributes = {
         EmailAddress: user.email,
         active_in_sidetrade: false,
@@ -52,8 +51,9 @@ export class SFMC_SidetradeUserMigrationService {
       recipient.contactKey = user.email;
       recipient.to = user.email;
       recipient.attributes = attributes;
-      requests.push(recipient);
+      return recipient;
     });
+
     return await this.sfmcBaseService.sendTransactionalMessages(this.sidetradeNewUserEventKey, requests);
   }
 }

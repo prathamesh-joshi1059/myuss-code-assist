@@ -7,11 +7,16 @@ import {
   Query,
   Body,
   Post,
-  Param
+  Param,
 } from '@nestjs/common';
 
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiInternalServerErrorResponse, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiInternalServerErrorResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { ThrottlerExceptionFilter } from '../../../core/utils/rate-limiting-exception/throttler-exception-filter';
 import { ApiRespDTO } from 'src/common/dto/api-resp.dto';
 import { ProjectService } from 'src/myuss/services/project/project.service';
@@ -26,30 +31,19 @@ import { AssignProjectIdReqDto } from './dto/assign-project-id-req.dto';
 @Controller('api/projects')
 @UseGuards(AuthGuard('jwt'))
 export class ProjectController {
-  constructor(
-    private projectService: ProjectService,
-  ) {}
-
+  constructor(private projectService: ProjectService) {}
 
   @UseGuards(AccountIdGuard)
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   @ApiInternalServerErrorResponse({ description: 'Internal server error' })
-  @UseGuards(AccountIdGuard)
   @Get('list')
   async getProjects(
     @Request() req,
     @Query() projectReqdto: GetProjectsReqDto,
   ): Promise<ApiRespDTO<Object>> {
-    let { status } = projectReqdto;
+    const status = projectReqdto.status || 'Active';
 
-    if (!status) {
-      status = 'Active';
-    }
-
-    const projectListResponse = await this.projectService.fetchProjects(
-      projectReqdto
-    );
-    return projectListResponse;
+    return this.projectService.fetchProjects(projectReqdto);
   }
 
   @UseGuards(AccountIdGuard)
@@ -61,11 +55,10 @@ export class ProjectController {
     @Query('accountId') accountId: string,
     @Body() addUpdateProjectReqdto: AddUpdateProjectReqDto,
   ): Promise<ApiRespDTO<Object>> {
-   
-    const projectListResponse = await this.projectService.addUpdateProject(
-      addUpdateProjectReqdto,req.user.sub
+    return this.projectService.addUpdateProject(
+      addUpdateProjectReqdto,
+      req.user.sub,
     );
-    return projectListResponse;
   }
 
   @UseGuards(AccountIdGuard)
@@ -75,12 +68,13 @@ export class ProjectController {
   async fetchProjectDetails(
     @Request() req,
     @Query('accountId') accountId: string,
-    @Param('id') id:string
+    @Param('id') id: string,
   ): Promise<ApiRespDTO<Object>> {
-    const projectListResponse = await this.projectService.fetchProjectDetails(
-      id,req.user.sub,accountId
+    return this.projectService.fetchProjectDetails(
+      id,
+      req.user.sub,
+      accountId,
     );
-    return projectListResponse;
   }
 
   @UseGuards(AccountIdGuard)
@@ -92,14 +86,10 @@ export class ProjectController {
     @Query('accountId') accountId: string,
     @Body() assignProjectIdReqDto: AssignProjectIdReqDto,
   ): Promise<ApiRespDTO<Object>> {
-  
-   
-    const projectListResponse = await this.projectService.assignProjectId(
-      assignProjectIdReqDto,req.user.sub,accountId
+    return this.projectService.assignProjectId(
+      assignProjectIdReqDto,
+      req.user.sub,
+      accountId,
     );
-    return projectListResponse ;
   }
-
 }
-  
-

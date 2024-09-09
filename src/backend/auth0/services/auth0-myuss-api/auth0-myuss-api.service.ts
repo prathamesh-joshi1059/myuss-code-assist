@@ -8,7 +8,6 @@ import { Auth0ManagementAPIService } from '../auth0-management-api/auth0-managem
 @Injectable()
 export class Auth0MyUSSAPIService {
   private clientId: string;
-  private databaseConnection: string;
   private databaseConnectionId: string;
   public readonly domain: string;
 
@@ -19,7 +18,6 @@ export class Auth0MyUSSAPIService {
     private auth0ManagementService: Auth0ManagementAPIService,
   ) {
     this.clientId = this.configService.get('AUTH0_CLIENT_ID');
-    this.databaseConnection = this.configService.get('AUTH0_DATABASE_CONNECTION');
     this.databaseConnectionId = this.configService.get('AUTH0_DATABASE_CONNECTION_ID');
     this.domain = this.configService.get('AUTH0_DOMAIN');
   }
@@ -33,13 +31,13 @@ export class Auth0MyUSSAPIService {
     };
     const response = await firstValueFrom(
       this.http
-        .get(url, { headers: headers, params: params })
+        .get(url, { headers, params })
         .pipe(map((response) => response.data)),
     );
     return response;
   }
 
-  async post(endpoint: string, body: any) {
+  async post(endpoint: string, body: unknown) {
     await this.auth0ManagementService.checkAndRefreshAccessToken();
     const url = `https://${this.domain}${endpoint}`;
     const headers = {
@@ -49,7 +47,7 @@ export class Auth0MyUSSAPIService {
     };
     const response = await firstValueFrom(
       this.http
-        .post(url, body, { headers: headers })
+        .post(url, body, { headers })
         .pipe(map((response) => response.data)),
     );
     return response;
@@ -62,43 +60,38 @@ export class Auth0MyUSSAPIService {
       'content-type': 'application/json',
       authorization: `Bearer ${this.auth0ManagementService.accessToken}`,
     };
-    const config = { headers: headers };
     const body = {
       connection_id: this.databaseConnectionId,
       client_id: this.clientId,
-      email: email,
+      email,
       ttl_sec: 3600,
     };
-    const resp = firstValueFrom(
-      this.http.post(url, body, config).pipe(map((response) => response.data)),
+    const resp = await firstValueFrom(
+      this.http.post(url, body, { headers }).pipe(map((response) => response.data)),
     );
     return resp;
   }
 
- 
-  generatePassword(passwordLength): string {
-    var numberChars = '0123456789';
-    var upperChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    var lowerChars = 'abcdefghijklmnopqrstuvwxyz';
-    var allChars = numberChars + upperChars + lowerChars;
-    var randPasswordArray = Array(passwordLength);
+  generatePassword(passwordLength: number): string {
+    const numberChars = '0123456789';
+    const upperChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const lowerChars = 'abcdefghijklmnopqrstuvwxyz';
+    const allChars = numberChars + upperChars + lowerChars;
+    const randPasswordArray = Array(passwordLength);
     randPasswordArray[0] = numberChars;
     randPasswordArray[1] = upperChars;
     randPasswordArray[2] = lowerChars;
-    randPasswordArray = randPasswordArray.fill(allChars, 3);
+    randPasswordArray.fill(allChars, 3);
+    
     return this.shuffleArray(
-      randPasswordArray.map(function (x) {
-        return x[Math.floor(Math.random() * x.length)];
-      }),
+      randPasswordArray.map((x) => x[Math.floor(Math.random() * x.length)]),
     ).join('');
   }
   
-  shuffleArray(array) {
-    for (var i = array.length - 1; i > 0; i--) {
-      var j = Math.floor(Math.random() * (i + 1));
-      var temp = array[i];
-      array[i] = array[j];
-      array[j] = temp;
+  private shuffleArray(array: any[]): any[] {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
     }
     return array;
   }

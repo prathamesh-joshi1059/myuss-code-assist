@@ -8,7 +8,7 @@ import { TaxCalculationResponse, TaxCalculationResponseLine } from '../../model/
 
 @Injectable()
 export class AvalaraCalculateTaxService {
-  private client: any;
+  private client: Avatax;
   private environment: string;
 
   constructor(private logger: LoggerService, private http: HttpService, private configService: ConfigService) {
@@ -18,7 +18,6 @@ export class AvalaraCalculateTaxService {
 
   // https://developer.avalara.com/api-reference/avatax/rest/v2/methods/Transactions/CreateTransaction/
   async calculateTax(request: TaxCalculationRequest): Promise<TaxCalculationResponse> {
-    // this.logger.info('calculateTax request', request);
     const rawResp = await this.client.createTransaction({ model: request });
     const response = new TaxCalculationResponse();
     response.id = rawResp.id;
@@ -36,48 +35,32 @@ export class AvalaraCalculateTaxService {
     return response;
   }
 
-  getAvalaraConfig() {
-    const config = {
+  private getAvalaraConfig() {
+    return {
       appName: 'myuss',
       appVersion: '1.0',
       environment: this.getAvalaraEnvironment(),
       machineName: 'google-cloud-run',
       timeout: 5000, // optional, default 20 min
       logOptions: {
-        logEnabled: this.getAvalaraLoggingEnabled(), // toggle logging on or off, by default its off.
-        logLevel: this.getLogLevel(), // logLevel that will be used, Options are LogLevel.Error (0), LogLevel.Warn (1), LogLevel.Info (2), LogLevel.Debug (3)
-        logRequestAndResponseInfo: false, // Toggle logging of the request and response bodies on and off.
-        logger: this.logger, // (OPTIONAL) Custom logger can be passed in that implements the BaseLogger interface (e.g. debug, info, warn, error, and log functions) Otherwise console.log/error etc will be used by default.
+        logEnabled: this.getAvalaraLoggingEnabled(),
+        logLevel: this.getLogLevel(),
+        logRequestAndResponseInfo: false,
+        logger: this.logger,
       },
-      // customHttpAgent: this.http, // (OPTIONAL) Define a custom https agent, import https from node to use this constructor. See https://node.readthedocs.io/en/latest/api/https/#https_class_https_agent for more information.
-      enableStrictTypeConversion: true, // Ensures that all responses returned by the API methods will be type-safe and match the Models explicitly, For Example, the enums will be returned as integer values instead of as Strings as previously were.
+      enableStrictTypeConversion: true,
     };
-    return config;
   }
 
-  getAvalaraLoggingEnabled(): boolean {
-    const loggingEnabled = this.configService.get('AVALARA_LOGGING_ENABLED');
-    if (!loggingEnabled) {
-      return false;
-    }
-    return loggingEnabled;
+  private getAvalaraLoggingEnabled(): boolean {
+    return !!this.configService.get('AVALARA_LOGGING_ENABLED');
   }
 
-  getLogLevel(): number {
-    let appLogLevel: string;
+  private getLogLevel(): number {
     const configLogLevel = this.logger.logLevel;
     const isProduction = this.logger.isProduction();
-    // if the log level is explicitly set, use that
-    if (configLogLevel) {
-      appLogLevel = configLogLevel;
-    } else if (isProduction) {
-      // if we are in production, use ERROR
-      appLogLevel = 'ERROR';
-    } else {
-      // otherwise use INFO
-      appLogLevel = 'INFO';
-    }
-    // return the log level as a number
+    const appLogLevel = configLogLevel || (isProduction ? 'ERROR' : 'INFO');
+
     switch (appLogLevel) {
       case 'DEBUG':
         return 3;
@@ -92,24 +75,21 @@ export class AvalaraCalculateTaxService {
     }
   }
 
-  getAvalaraEnvironment(): string {
-    // the environment for the app
+  private getAvalaraEnvironment(): string {
     const environment = this.configService.get('ENVIRONMENT');
     if (!environment) {
       throw new Error('ENVIRONMENT is undefined');
     }
-    // the environment for Avalara
     return environment === 'production' ? 'production' : 'sandbox';
   }
 
-  getAvalaraCredentials(): { username: string; password: string } {
-    const credentials = {
-      username: this.configService.get('AVALARA_USERNAME'),
-      password: this.configService.get('AVALARA_PASSWORD'),
-    };
-    if (!credentials.username || !credentials.password) {
+  private getAvalaraCredentials(): { username: string; password: string } {
+    const username = this.configService.get('AVALARA_USERNAME');
+    const password = this.configService.get('AVALARA_PASSWORD');
+
+    if (!username || !password) {
       throw new Error('AVALARA_USERNAME or AVALARA_PASSWORD is undefined');
     }
-    return credentials;
+    return { username, password };
   }
 }

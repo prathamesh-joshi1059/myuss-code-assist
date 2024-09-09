@@ -6,35 +6,20 @@ import { CreateDto_Request_for_Quote__c } from './dto/CreateDto_Request_for_Quot
 export class SfdcRFQService {
   constructor(private sfdcBaseService: SfdcBaseService) {}
 
-  async getRFQ(id: string) {
-    const rfq = await this.sfdcBaseService.getSObjectById('Request_for_Quote__c', id);
-    return rfq;
+  async getRFQ(id: string): Promise<object> {
+    return this.sfdcBaseService.getSObjectById('Request_for_Quote__c', id);
   }
 
-  async getRFQbyGUID(rfq_id: string) {
-    let rfq;
+  async getRFQbyGUID(rfq_id: string): Promise<object | undefined> {
     const rfqs = await this.sfdcBaseService.getSObjectRecordsByField('Request_for_Quote__c', 'RFQ_ID__c', rfq_id);
-    if (rfqs.length > 0) {
-      rfq = rfqs[0];
-    }
-    return rfq;
+    return rfqs.length > 0 ? rfqs[0] : undefined;
   }
 
   async createRFQ(rfq: CreateDto_Request_for_Quote__c): Promise<object> {
-    const rfqId = await this.sfdcBaseService.createSObject(
-      'Request_for_Quote__c',
-      rfq,
-    );
-    return rfqId;
+    return this.sfdcBaseService.createSObject('Request_for_Quote__c', rfq);
   }
 
   async updateRFQByGUID(rfq_id: string, rfq: CreateDto_Request_for_Quote__c): Promise<object> {
-    let rfqId;
-    rfqId = await this.sfdcBaseService.updateSObjectByExternalId(
-      'Request_for_Quote__c',
-      'RFQ_ID__c',
-      rfq,
-    );
-    return rfqId;
+    return this.sfdcBaseService.updateSObjectByExternalId('Request_for_Quote__c', 'RFQ_ID__c', rfq);
   }
 }

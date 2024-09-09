@@ -2,12 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { SfdcBaseService } from '../sfdc-base/sfdc-base.service';
 import { Account } from '../../model/Account';
 import { LoggerService } from '../../../../core/logger/logger.service';
-import { SfdcContractService } from '../sfdc-contract/sfdc-contract.service';
 
 @Injectable()
 export class SfdcAccountService {
-  prospectRecordTypeName = 'Prospect';
-  public accountRecordTypeIdProspect: string;
+  private readonly prospectRecordTypeName = 'Prospect';
+  public accountRecordTypeIdProspect!: string;
 
   constructor(private salesforceBaseService: SfdcBaseService, private logger: LoggerService) {}
 
@@ -44,37 +43,29 @@ export class SfdcAccountService {
       'USF_Outstanding_Balance__c',
     ];
     const resp = await this.salesforceBaseService.getSObjectById('Account', id, fields);
-    const account = Object.assign(new Account(), resp);
-
-    return account;
+    return Object.assign(new Account(), resp);
   }
 
   async getProspectAccountRecordTypeId(): Promise<void> {
     const soql = `SELECT Id, Name FROM RecordType WHERE SobjectType = 'Account' AND Name = '${this.prospectRecordTypeName}'`;
     const recordType = await this.salesforceBaseService.getQuery(soql);
-    if (!recordType.records || recordType.length === 0) {
+    if (!recordType.records || recordType.records.length === 0) {
       throw new Error(`No record type found for ${this.prospectRecordTypeName}`);
     }
     this.accountRecordTypeIdProspect = recordType.records[0].Id;
   }
 
   async getAccountsByAccountNumbers(accountNumbers: string[]): Promise<Account[]> {
-    // create list of account numbers
-    let accountNumbersSoql = 'USF_Account_Number__c IN (';
-    accountNumbers.forEach((accountNumber) => {
-      accountNumbersSoql += `'${this.salesforceBaseService.escapeSOQLString(accountNumber)}',`;
-    });
-    accountNumbersSoql = accountNumbersSoql.slice(0, -1); // remove trailing comma
-    accountNumbersSoql += ')';
-    const query = `SELECT Id, USF_Account_Number__c
-      FROM Account WHERE ${accountNumbersSoql}`;
+    const accountNumbersSoql = `USF_Account_Number__c IN (${accountNumbers
+      .map((accountNumber) => `'${this.salesforceBaseService.escapeSOQLString(accountNumber)}'`)
+      .join(',')})`;
+    const query = `SELECT Id, USF_Account_Number__c FROM Account WHERE ${accountNumbersSoql}`;
     this.logger.info('getAccountsByAccountNumbers query', query);
     const response = await this.salesforceBaseService.getQuery(query);
-    const accounts = response.records;
-    return accounts;
+    return response.records;
   }
 
-  public async updatePrimaryPayer(accountId: any, contactId: any) {
+  public async updatePrimaryPayer(accountId: string, contactId: string): Promise<void> {
     const account = new Account();
     account.Id = accountId;
     account.Primary_Payer__c = contactId;
@@ -88,14 +79,11 @@ export class SfdcAccountService {
 
   async getAccounts(): Promise<any> {
     const soql = `SELECT Id, Name FROM Account`;
-    const accounts = await this.salesforceBaseService.getQuery(soql);
-    return accounts;
+    return await this.salesforceBaseService.getQuery(soql);
   }
 
-  async getAccountByName(crm_companyname: string) {
-    const soql = `SELECT Id, Name, Account_Payment_Status__c FROM Account WHERE Name LIKE '%${this.salesforceBaseService.escapeSOQLString(
-      crm_companyname,
-    )}%'`;
+  async getAccountByName(crm_companyname: string): Promise<any> {
+    const soql = `SELECT Id, Name, Account_Payment_Status__c FROM Account WHERE Name LIKE '%${this.salesforceBaseService.escapeSOQLString(crm_companyname)}%'`;
     return await this.salesforceBaseService.getQuery(soql);
   }
 
@@ -116,7 +104,6 @@ export class SfdcAccountService {
     return await this.salesforceBaseService.updateSObjects('Account', accountsToUpdate, 25);
   }
 
-  // Features: core, billing, cases, easy_pay, home, orders, projects, quotes
   async enableMyUSSFeatures(
     accountId: string,
     featuresToEnable: ('core' | 'billing' | 'cases' | 'easy_pay' | 'home' | 'orders' | 'projects' | 'quotes')[],
@@ -157,82 +144,52 @@ export class SfdcAccountService {
       .where({ Id: contractId, AccountId: accountId })
       .limit(1)
       .execute();
-    if (contract?.length === 0) {
-      return false;
-    }
-    return true;
+    return contract?.length > 0;
   }
 
-
-  async fetchAllDashboardDetails(accountId:string):Promise<object>{
-   
-    let orderCount = 0
-    let quoteCount = 0;
-    let caseCount = 0;
-    let outStandingBalance = 0;
-
-    const orderCountPromise =  this.getCount(accountId,'order').then((count) => {
-      orderCount = count
-    });
-
-    const quoteCountPromise = this.getCount(accountId,'quote').then((count) => {
-      quoteCount = count
-      });
-
-    const casesCountPromise = this.getCount(accountId,'case').then((count) => {
-      caseCount = count
-      });
-
-
-      const outStandingBalancePromise = this.getQutstandingBalance(accountId).then((balance) => {
-        outStandingBalance = balance
-      });
-
-
-
-    return await Promise.all([orderCountPromise,quoteCountPromise , casesCountPromise, outStandingBalancePromise]).then(() => {
-      return {orderCount,quoteCount,caseCount,outStandingBalance}
-      }).catch((err) => {
-        this.logger.error(err);
-    const respObj = {
-      status: 200,
-      message: 'Fail',
-      data: { error: err },
-    };
-    return respObj;
-      }
-    );
+  async fetchAllDashboardDetails(accountId: string): Promise<object> {
+    const orderCountPromise = this.getCount(accountId, 'order');
+    const quoteCountPromise = this.getCount(accountId, 'quote');
+    const casesCountPromise = this.getCount(accountId, 'case');
+    const outStandingBalancePromise = this.getQutstandingBalance(accountId);
+    
+    try {
+      const [orderCount, quoteCount, caseCount, outStandingBalance] = await Promise.all([
+        orderCountPromise,
+        quoteCountPromise,
+        casesCountPromise,
+        outStandingBalancePromise,
+      ]);
+      return { orderCount, quoteCount, caseCount, outStandingBalance };
+    } catch (err) {
+      this.logger.error(err);
+      return { status: 200, message: 'Fail', data: { error: err } };
     }
-  
+  }
 
-
-   async getCount(accountId: string,type: string): Promise<number> {
-   let query = '';
-    switch(type) {
+  async getCount(accountId: string, type: string): Promise<number> {
+    let query = '';
+    switch (type) {
       case 'order':
-         query = `select count(id) from Contract where AccountId = '${accountId}'  and Status != 'Canceled'`;
+        query = `SELECT COUNT(Id) FROM Contract WHERE AccountId = '${accountId}' AND Status != 'Canceled'`;
         break;
       case 'quote':
-        query= `select count(id)
-        from SBQQ__Quote__c where SBQQ__Account__c = '${accountId}' and SBQQ__Status__c not in('Rejected', 'Archived','Ordered','Canceled')`
+        query = `SELECT COUNT(Id) FROM SBQQ__Quote__c WHERE SBQQ__Account__c = '${accountId}' AND SBQQ__Status__c NOT IN ('Rejected', 'Archived', 'Ordered', 'Canceled')`;
         break;
-      case 'case':  
-       query = `select count(id)from case where AccountId = '${accountId}' and Status != 'Closed' and RecordType.Name = 'Order Support' ` ;
-      break;
+      case 'case':
+        query = `SELECT COUNT(Id) FROM Case WHERE AccountId = '${accountId}' AND Status != 'Closed' AND RecordType.Name = 'Order Support'`;
+        break;
     }
-
     const getCountResp = await this.salesforceBaseService.getQuery(query);
     return getCountResp.records[0].expr0;
   }
 
- 
   getQutstandingBalance(accountId: string): Promise<number> {
     const query = `SELECT USF_Outstanding_Balance__c FROM Account WHERE Id = '${accountId}'`;
     return this.salesforceBaseService.getQuery(query).then((resp) => {
       return resp.records[0].USF_Outstanding_Balance__c;
     });
   }
-
 
   public getUserModulesEnableFeatures(
     featuresToEnable: ('core' | 'billing' | 'cases' | 'easy_pay' | 'home' | 'orders' | 'projects' | 'quotes')[],
@@ -247,22 +204,10 @@ export class SfdcAccountService {
       projects: 'MyUSS Projects Enabled;',
       quotes: 'MyUSS Quotes Enabled;',
     };
-  
-    let userModulesEnable = '';
-  
-    featuresToEnable.forEach(feature => {
-      if (featureStrings[feature]) {
-        userModulesEnable += featureStrings[feature];
-      }
-    });
 
-    if (userModulesEnable.endsWith(';')) {
-      userModulesEnable = userModulesEnable.slice(0, -1);
-    }
-  
-    return userModulesEnable;
+    return featuresToEnable
+      .map((feature) => featureStrings[feature])
+      .filter(Boolean)
+      .join('');
   }
-
-
-
 }

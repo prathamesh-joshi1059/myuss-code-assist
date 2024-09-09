@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { CustomAuthGuard } from './auth.guard';
 import { ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
-import { JwtStrategy } from './strategies/jwt.strategy'
+import { JwtStrategy } from './strategies/jwt.strategy';
 import { AuthService } from './auth/auth.service';
 import { JwtModule } from '@nestjs/jwt';
 import { ManagementAPIStrategy } from './strategies/management-api.strategy';
@@ -14,25 +14,22 @@ import { ManagementAPIStrategy } from './strategies/management-api.strategy';
       global: true,
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => {
-        const secret = configService.get('JWT_PRIVATE_KEY');
-        const expiresIn = configService.get('JWT_EXPIRES_IN');
+        const secret = configService.get<string>('JWT_PRIVATE_KEY');
+        const expiresIn = configService.get<string>('JWT_EXPIRES_IN');
         return {
-          secret: secret,
-          signOptions: { expiresIn: expiresIn },
+          secret,
+          signOptions: { expiresIn },
         };
       },
     }),
   ],
   providers: [
-    ConfigService, 
-    CustomAuthGuard, 
-    JwtStrategy, 
-    AuthService, 
+    ConfigService,
+    CustomAuthGuard,
+    JwtStrategy,
+    AuthService,
     ManagementAPIStrategy,
   ],
-  exports: [
-    PassportModule,
-    AuthService,
-  ],
+  exports: [PassportModule, AuthService],
 })
 export class AuthModule {}

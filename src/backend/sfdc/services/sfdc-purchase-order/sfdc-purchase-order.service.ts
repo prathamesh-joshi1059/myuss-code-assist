@@ -5,10 +5,9 @@ import { CreateDto_Purchase_Order__c } from './dto/create-Purchase_Order__c.dto'
 
 @Injectable()
 export class SfdcPurchaseOrderService {
-
   constructor(private salesforceBaseService: SfdcBaseService) {}
 
-  async getPurchaseOrders(): Promise<Purchase_Order__c> {
+  async getPurchaseOrders(): Promise<Purchase_Order__c[]> {
     const soql = `SELECT Id, Name, Account__c, Amount__c, Expiration_Date__c FROM Purchase_Order__c`;
     const purchaseOrders = await this.salesforceBaseService.getQuery(soql);
     return purchaseOrders;
@@ -25,10 +24,10 @@ export class SfdcPurchaseOrderService {
     const purchaseOrders = await this.salesforceBaseService.getQuery(soql);
     return purchaseOrders;
   }
-  
+
   async createPurchaseOrder(purchaseOrder: CreateDto_Purchase_Order__c): Promise<Purchase_Order__c> {
     const createdPurchaseOrder = await this.salesforceBaseService.createSObject('Purchase_Order__c', purchaseOrder);
-    let po = new Purchase_Order__c();
+    const po = new Purchase_Order__c();
     Object.assign(po, createdPurchaseOrder);
     return po;
     // TODO: handle errors

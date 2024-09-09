@@ -82,8 +82,7 @@ export class QuoteController {
   @ApiInternalServerErrorResponse({ description: 'Internal server error' })
   @Post('update-quote')
   async addProductAndSave(@Request() req, @Body() request: AddProductAndCalculateReqDTO): Promise<ApiRespDTO<any>> {
-    const updateQuoteResp = await this.quoteService.addProductAndSave(request, req.user?.sub,req.query.accountId);
-    return updateQuoteResp;
+    return await this.quoteService.addProductAndSave(request, req.user?.sub, req.query.accountId);
   }
 
   @UseGuards(QuoteIdGuard)
@@ -94,44 +93,16 @@ export class QuoteController {
     @Request() req,
     @Param('id') id: string,
     @Query('accountId') accountId: string,
-    @Query('quotehtml') quoteHtml: string,
+    @Query('quotehtml') quoteHtml: string = 'false',
     @Body() body,
   ): Promise<ApiRespDTO<any>> {
-    //make quoteHtml always false if not provided
-    if (!quoteHtml) {
-      quoteHtml = 'false';
-    }
     const cacheResp = await this.quoteService.handleCache(body.requestId, body, TIMEMS_CACHE_REQUEST_FOR_QUOTE);
     if (!cacheResp?.isEligibleForNewRequest) {
       return cacheResp.resp;
     }
-   // let userDetailsModel = JSON.parse(await this.cacheService.get<string>('user-' + req.user?.sub));
-    // calculate price and tax
-    if (quoteHtml === 'false') {
-      const calculateAndSavePriceAndTax = await this.quoteService.calculateAndSavePriceAndTax(
-        id,
-        accountId,
-        req.user?.sub,
-        quoteHtml
-      );
-      // generate the document and save
-      const createQuoteDocumentResp = await this.quoteService.createAndSaveQuoteDocument(
-        id,
-        body.requestId,
-        accountId,
-        req.user?.sub,
-      );
-      return createQuoteDocumentResp;
-    } else {
-      // generate the document and save
-      const createQuoteDocumentResp = await this.quoteService.createAndSaveQuoteDocument(
-        id,
-        body.requestId,
-        accountId,
-        req.user?.sub,
-      );
-      return createQuoteDocumentResp;
-    }
+
+    await this.quoteService.calculateAndSavePriceAndTax(id, accountId, req.user?.sub, quoteHtml);
+    return await this.quoteService.createAndSaveQuoteDocument(id, body.requestId, accountId, req.user?.sub);
   }
 
   @UseGuards(QuoteIdGuard)
@@ -141,37 +112,26 @@ export class QuoteController {
   async createQuoteHtml(
     @Request() req,
     @Param('id') id: string,
-    @Query('quotehtml') quoteHtml: string,
+    @Query('quotehtml') quoteHtml: string = 'true',
     @Query('accountId') accountId: string,
     @Body() body,
   ): Promise<ApiRespDTO<any>> {
-    let cacheDataJSON = {
-      response: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    //make quoteHtml always true if not provided
-    if (!quoteHtml) {
-      quoteHtml = 'true';
-    }
     const cacheResp = await this.quoteService.handleCache(body.requestId, body, TIMEMS_CACHE_REQUEST_FOR_QUOTE);
     if (!cacheResp?.isEligibleForNewRequest) {
       return cacheResp.resp;
     }
-   // let userDetailsModel = JSON.parse(await this.cacheService.get<string>('user-' + req.user?.sub));
-    // calculate price and tax & html
-    const calculateAndSavePriceAndTax = await this.quoteService.calculateAndSavePriceAndTax(
-      id,
-      accountId,
-      req.user?.sub,
-      quoteHtml,
-    );
 
-    cacheDataJSON.response = calculateAndSavePriceAndTax;
+    const calculateAndSavePriceAndTax = await this.quoteService.calculateAndSavePriceAndTax(id, accountId, req.user?.sub, quoteHtml);
+    
+    const cacheDataJSON = {
+      response: calculateAndSavePriceAndTax,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
     await this.cacheService.set(body.requestId, cacheDataJSON, TIMEMS_CACHE_REQUEST_FOR_QUOTE);
 
     return calculateAndSavePriceAndTax;
-  } 
+  }
 
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   @ApiInternalServerErrorResponse({ description: 'Internal server error' })
@@ -184,10 +144,8 @@ export class QuoteController {
     @Res({ passthrough: true }) res: Response,
     @Request() req,
   ): Promise<StreamableFile> {
-    const documentBlob = await this.quoteService.getQuoteDocumentBody(id, documentId,req.query.accountId ,req.user?.sub);
-    const arrayBuffer = await documentBlob.arrayBuffer();
-    this.logger.info(documentBlob);
-    const buffer = Buffer.from(arrayBuffer);
+    const documentBlob = await this.quoteService.getQuoteDocumentBody(id, documentId, req.query.accountId, req.user?.sub);
+    const buffer = Buffer.from(await documentBlob.arrayBuffer());
     const file = new StreamableFile(buffer);
     res.set({
       'Content-Type': documentBlob.type,
@@ -203,55 +161,50 @@ export class QuoteController {
   async getQuote(@Param('id') id: string): Promise<ApiRespDTO<any>> {
     const resp = await this.quoteService.getQuoteDetailsById(id);
 
-    if (resp.success) {
-      return {
-        status: 1000,
-        message: 'Success',
-        data: resp.data,
-      };
-    } else {
-      return {
-        status: 1006,
-        message: 'Fail',
-        data: { error: resp.message },
-      };
-    }
+    return resp.success ? {
+      status: 1000,
+      message: 'Success',
+      data: resp.data,
+    } : {
+      status: 1006,
+      message: 'Fail',
+      data: { error: resp.message },
+    };
   }
+
   //step - 2 Accept/Reject quote
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   @ApiInternalServerErrorResponse({ description: 'Internal server error' })
   @UseGuards(QuoteIdGuard)
   @Post('update-status')
   async updateQuoteStatus(@Request() req, @Body() body: UpdateQuoteStatusReqDTO): Promise<ApiRespDTO<any>> {
-    //let userDetailsModel = JSON.parse(await this.cacheService.get<string>('user-' + req.user?.sub));
-    const updateQuoteStatusResp = await this.quoteService.updateQuoteStatus(body,req.query.accountId,req.user?.sub);
-    return updateQuoteStatusResp;
+    return await this.quoteService.updateQuoteStatus(body, req.query.accountId, req.user?.sub);
   }
+
   //step - 3 Site Details
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   @ApiInternalServerErrorResponse({ description: 'Internal server error' })
   @UseGuards(QuoteIdGuard)
   @Post('site-details')
   async saveSiteDetails(@Body() body: SiteDetailsReqDTO, @Request() req): Promise<ApiRespDTO<any>> {
-    const saveSiteDetailsResp = await this.quoteService.updateSiteDetails(body,req.query.accountId,req.user?.sub);
-    return saveSiteDetailsResp;
+    return await this.quoteService.updateSiteDetails(body, req.query.accountId, req.user?.sub);
   }
+
   //delete quoted job site
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   @ApiInternalServerErrorResponse({ description: 'Internal server error' })
   @Delete('site-details')
   async deleteQuotedJobSite(@Body() body: DeleteQuotedJobSiteReqDTO): Promise<ApiRespDTO<any>> {
-    const saveSiteDetailsResp = await this.quoteService.deleteQuotedJobSite(body.addressId);
-    return saveSiteDetailsResp;
+    return await this.quoteService.deleteQuotedJobSite(body.addressId);
   }
+
   //step - 4 Billing Details
   @UseGuards(QuoteIdGuard)
   @Post('billing-details')
   async saveBillingDetails(@Request() req, @Body() body: BillingDetailsReqDTO): Promise<ApiRespDTO<any>> {
-
-    const saveBillingDetailsResp = await this.quoteService.updateBillingAddress(body, req.query.accountId,req.user?.sub);
-    return saveBillingDetailsResp;
+    return await this.quoteService.updateBillingAddress(body, req.query.accountId, req.user?.sub);
   }
+
   //step - 5 Confirm Quote
   @UseGuards(QuoteIdGuard)
   @Post('confirm-quote')
@@ -260,15 +213,9 @@ export class QuoteController {
     if (!cacheResp?.isEligibleForNewRequest) {
       return cacheResp.resp;
     }
-    if (body.isAutoPay == undefined) {
-      body.isAutoPay = false;
-    }
-    const approveQuoteResp = await this.quoteService.approveQuote(body.quoteId,  req.user?.sub,req.query.accountId);
-    const respConfirmOrderResp = await this.quoteService.confirmQuote(
-      body,
-      req.user?.sub,
-      req.query.accountId
-    );
-    return respConfirmOrderResp;
+
+    body.isAutoPay = body.isAutoPay ?? false;
+    await this.quoteService.approveQuote(body.quoteId, req.user?.sub, req.query.accountId);
+    return await this.quoteService.confirmQuote(body, req.user?.sub, req.query.accountId);
   }
 }

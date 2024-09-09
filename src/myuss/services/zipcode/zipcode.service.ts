@@ -3,44 +3,49 @@ import { SfdcServiceableZipCodeService } from '../../../backend/sfdc/services/sf
 import { ZipcodeRespDto } from '../../controllers/zipcode/dto/zipcode-resp.dto';
 import { LoggerService } from '../../../core/logger/logger.service';
 import { ApiRespDTO } from '../../../common/dto/api-resp.dto';
-import {TIMEMS_CACHE_ZIPCODE, USS_CUSTOMERCARE_MESSAGE, USS_CUSTOMERCARE_PHONE} from '../../../core/utils/constants';
+import { TIMEMS_CACHE_ZIPCODE, USS_CUSTOMERCARE_MESSAGE, USS_CUSTOMERCARE_PHONE } from '../../../core/utils/constants';
 import { CacheService } from '../../../core/cache/cache.service';
+
 @Injectable()
 export class ZipcodeService {
   constructor(
-    private sfdcServiceableZipCodeService: SfdcServiceableZipCodeService,
-    private logger: LoggerService,
-    private cacheService: CacheService,
+    private readonly sfdcServiceableZipCodeService: SfdcServiceableZipCodeService,
+    private readonly logger: LoggerService,
+    private readonly cacheService: CacheService,
   ) {}
-  async checkServiceableZipcode(postalCode: string): Promise<ApiRespDTO<ZipcodeRespDto| Object>> {
-    let zipcodeRespObj = new ApiRespDTO();
-    let cachedZipcodeRespObj : ApiRespDTO<Object> = await this.cacheService.get(postalCode);
-    if(cachedZipcodeRespObj){
-      return cachedZipcodeRespObj
+
+  async checkServiceableZipcode(postalCode: string): Promise<ApiRespDTO<ZipcodeRespDto | Object>> {
+    let zipcodeRespObj: ApiRespDTO<ZipcodeRespDto | Object> = new ApiRespDTO();
+    const cachedZipcodeRespObj: ApiRespDTO<Object> | null = await this.cacheService.get(postalCode);
+
+    if (cachedZipcodeRespObj) {
+      return cachedZipcodeRespObj;
     }
+
     try {
       const serviceableResponse = await this.sfdcServiceableZipCodeService.checkServiceableZipcode(postalCode);
-      if (serviceableResponse == undefined || serviceableResponse == null || serviceableResponse.Out_of_Footprint__c === true) {
+
+      if (!serviceableResponse || serviceableResponse.Out_of_Footprint__c === true) {
         zipcodeRespObj = {
           success: false,
           status: 1007,
-          message:
-            `This ZIP code is not currently eligible for web orders. Please call ${USS_CUSTOMERCARE_PHONE} to speak with a representative.`,
+          message: `This ZIP code is not currently eligible for web orders. Please call ${USS_CUSTOMERCARE_PHONE} to speak with a representative.`,
           data: {},
         };
         return zipcodeRespObj;
       }
+
       zipcodeRespObj = {
         success: true,
         status: 1000,
         message: 'USS provides services in this area',
         data: {
           isServiceable: true,
-          containmentTrayRequiredForRestroom:
-            serviceableResponse.Containment_Tray_Required__c === 'Yes' ? true : false,
+          containmentTrayRequiredForRestroom: serviceableResponse.Containment_Tray_Required__c === 'Yes',
         },
       };
-      this.cacheService.set(postalCode, zipcodeRespObj,TIMEMS_CACHE_ZIPCODE);
+
+      this.cacheService.set(postalCode, zipcodeRespObj, TIMEMS_CACHE_ZIPCODE);
       return zipcodeRespObj;
     } catch (error) {
       // Log the error for debugging and monitoring purposes
@@ -55,33 +60,3 @@ export class ZipcodeService {
     }
   }
 }
-  
-        
-      
-              
-
-          
-        
-
-    
-    
-        
-    
-        
-
-        
-      
-      
-
-          
-          
-        
-    
-      
-        
-            
-            
-        
-        
-        
-

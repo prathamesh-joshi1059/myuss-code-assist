@@ -9,18 +9,20 @@ import { GoogleMapsService } from '../../../backend/google/google-maps/google-ma
 @Injectable()
 export class LeadsService {
   constructor(
-    private sfdcLeadsService: SfdcLeadService,
-    private leadScoringService: LeadScoringService,
-    private googleMapsService: GoogleMapsService,
-    private logger: LoggerService,
-    ) {}
+    private readonly sfdcLeadsService: SfdcLeadService,
+    private readonly leadScoringService: LeadScoringService,
+    private readonly googleMapsService: GoogleMapsService,
+    private readonly logger: LoggerService,
+  ) {}
 
-  public async createOrUpdateLeadForRfq(rfq: RequestForQuote): Promise<string> {
+  public async createOrUpdateLeadForRfq(rfq: RequestForQuote): Promise<string | undefined> {
     // map the RFQ to a Lead
     const lead = RFQtoLeadMapper.mapRFQtoSFDCLead(rfq);
+    
     // add the state to the Lead
     const state = await this.googleMapsService.getStateNameByZip(lead.PostalCode);
-    lead.State = state?.substring(0,80);
+    lead.State = state?.substring(0, 80);
+
     // get the priority campaign for the RFQ
     this.logger.info('Getting priority campaign for started', new Date());
     try {
@@ -29,14 +31,16 @@ export class LeadsService {
       this.logger.error('Error getting priority campaign', error);
     }
     this.logger.info('Getting priority campaign for finished', new Date());
+
     // create or update the Lead
-    let createdLeadId;
+    let createdLeadId: string | undefined;
     try {
       createdLeadId = await this.sfdcLeadsService.createOrUpdateLead(lead);
       this.logger.info('Lead created or updated', createdLeadId);
     } catch (error) {
       this.logger.error('Error creating or updating lead', error);
     }
+
     return createdLeadId;
   }
 }

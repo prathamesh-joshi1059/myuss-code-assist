@@ -6,13 +6,14 @@ import { RecordResult } from '../../model/RecordResult';
 
 @Injectable()
 export class SfdcLeadService {
-  constructor(private sfdcBaseService: SfdcBaseService, private logger: LoggerService) {}
+  constructor(private readonly sfdcBaseService: SfdcBaseService, private readonly logger: LoggerService) {}
 
   public async createOrUpdateLead(lead: Lead): Promise<string> {
-    let resp = await this.getLeadByEmail(lead.Email);
+    const existingLead = await this.getLeadByEmail(lead.Email);
     let leadId = '';
-    if (resp) {
-      leadId = resp.Id;
+
+    if (existingLead) {
+      leadId = existingLead.Id;
       lead.Id = leadId;
       // do the update async
       this.updateLead(lead)
@@ -26,6 +27,7 @@ export class SfdcLeadService {
       const createdLead = await this.createLead(lead);
       leadId = createdLead['id'];
     }
+
     return leadId;
   }
 
@@ -38,14 +40,11 @@ export class SfdcLeadService {
     return await this.sfdcBaseService.updateSObject('Lead', lead);
   }
 
-  public async getLeadByEmail(email: string): Promise<Lead> {
+  public async getLeadByEmail(email: string): Promise<Lead | null> {
     // Exclude converted and disqualified leads and return the most recently modified
     const query = `SELECT Id, Email FROM Lead WHERE Email = '${email}' AND IsDeleted = false AND Status NOT IN ('Converted', 'Disqualified') ORDER BY LastModifiedDate DESC LIMIT 1`;
     const resp = await this.sfdcBaseService.getQuery(query);
-    if (resp && resp.records && resp.records.length > 0) {
-      return resp.records[0] as Lead;
-    } else {
-      return null;
-    }
+    
+    return resp?.records?.[0] as Lead | null;
   }
 }

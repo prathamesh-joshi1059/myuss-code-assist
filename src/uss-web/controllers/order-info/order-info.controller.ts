@@ -22,23 +22,16 @@ export class OrderInfoController {
   @Post()
   public async getOrderInfo(@Body() body: GetOrderInfoDTO) {
     try {
-      const token = body.reCaptchaToken;
+      const { reCaptchaToken: token, orderNo: orderId, zip: zipCode } = body;
       // check the reCaptcha
-      const recaptchaResult = await this.recaptchaService.verifyRecaptcha(
-        token,
-        'order_info',
-      );
+      const recaptchaResult = await this.recaptchaService.verifyRecaptcha(token, 'order_info');
       if (!recaptchaResult.success) {
         return { status_code: 'ERR_RECAPTCHA' };
       }
-      const orderId = body.orderNo;
-      const zipCode = body.zip;
 
-      this.logger.info(`getOrderInfo: ${body.orderNo} zip: ${body.zip}`);
-      const orderInfo = await this.orderInfoService.getOrderInfoByOrderIdAndZIP(
-        orderId,
-        zipCode,
-      );
+      this.logger.info(`getOrderInfo: ${orderId} zip: ${zipCode}`);
+      const orderInfo = await this.orderInfoService.getOrderInfoByOrderIdAndZIP(orderId, zipCode);
+      
       if (orderInfo) {
         if (orderInfo.order_status === 'Canceled') {
           return { 
@@ -51,7 +44,7 @@ export class OrderInfoController {
         return { 
           status_code: 'ERR_NOT_FOUND',
           default_message: 'The order/zip code combination was not found. Please check your order number and zip code and try again or contact us at 1-800-TOILETS.'
-         };
+        };
       }
     } catch (err) {
       this.logger.error(err);

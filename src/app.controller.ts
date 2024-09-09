@@ -1,20 +1,19 @@
-import { Controller, Get, Inject, Post, Req } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
 
 @Controller()
 export class AppController {
-  randomNumDbs = Math.floor(Math.random() * 10);
-  constructor(
-    private readonly appService: AppService,
-  ) {}
+  randomNumDbs: number = Math.floor(Math.random() * 10);
+
+  constructor(private readonly appService: AppService) {}
 
   @Get()
-  async getHello(): Promise<any> {
+  async getHello(): Promise<string> {
     try {
-      return this.appService.getHello();
+      return await this.appService.getHello();
     } catch (err) {
       console.error(err);
-      return err;
+      throw err; // Rethrowing the error for better error handling
     }
   }
 }

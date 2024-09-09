@@ -9,21 +9,20 @@ export class SfdcAccountService {
     this.setupMockData();
   }
 
-  async getAccounts(): Promise<any> {
+  async getAccounts(): Promise<Account[]> {
     return this.mockAccountsList;
   }
 
   async getAccountByName(crm_companyname: string): Promise<Account | null> {
-    const acct = this.mockAccountsList.find((acct) => acct.Name === crm_companyname);
-    return acct;
+    return this.mockAccountsList.find((acct) => acct.Name === crm_companyname) || null;
   }
 
   // TODO: Add more mock data as needed, make it more sophisticated
-  setupMockData() {
+  private setupMockData(): void {
     const account1 = new Account();
     account1.Id = 'account1id';
     account1.Name = 'account1';
-    account1.PP_Email__c = 'myusstest@fakemail.com'
+    account1.PP_Email__c = 'myusstest@fakemail.com';
     this.mockAccountsList.push(account1);
   }
 }

@@ -7,13 +7,23 @@ import {
   UseGuards,
   Request,
   Param,
-  UseFilters
+  UseFilters,
 } from '@nestjs/common';
 import { PaymentMethodsService } from '../../services/payment/payment-methods.service';
 import { AuthGuard } from '@nestjs/passport';
 import { LoggerService } from '../../../core/logger/logger.service';
-import { ApiBadRequestResponse,ApiResponse,ApiTags,ApiUnauthorizedResponse} from '@nestjs/swagger';
-import { StripeCreateCustomerReqDTO,StripeGetPaymentDetailsReqDTO,StripeGetPaymentMethodsReqDTO,StripeSetupIntentReqDTO} from './dto/payment-req.dto';
+import {
+  ApiBadRequestResponse,
+  ApiResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
+import {
+  StripeCreateCustomerReqDTO,
+  StripeGetPaymentDetailsReqDTO,
+  StripeGetPaymentMethodsReqDTO,
+  StripeSetupIntentReqDTO,
+} from './dto/payment-req.dto';
 import { ApiRespDTO } from '../../../common/dto/api-resp.dto';
 import { ThrottlerExceptionFilter } from '../../../core/utils/rate-limiting-exception/throttler-exception-filter';
 
@@ -23,24 +33,24 @@ import { ThrottlerExceptionFilter } from '../../../core/utils/rate-limiting-exce
 @Controller('api/stripe')
 export class PaymentMethodsController {
   constructor(
-    private paymentMethodsService: PaymentMethodsService,
-    private logger: LoggerService,
+    private readonly paymentMethodsService: PaymentMethodsService,
+    private readonly logger: LoggerService,
   ) {}
+
   @ApiResponse({ status: 1000, description: 'Success', type: ApiRespDTO })
-  @ApiBadRequestResponse({
-    status: 401,
-  })
+  @ApiBadRequestResponse({ status: 401 })
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   @Post('customer')
   async createStripeCustomer(
     @Request() req,
     @Body() request: StripeCreateCustomerReqDTO,
-  ) {
+  ): Promise<ApiRespDTO<any>> {
     this.logger.info('createStripeCustomer', req);
     const customerResponse = await this.paymentMethodsService.getStripeCustomer(
       request.accountNumber,
     );
-    let customerResObj = new ApiRespDTO<any>();
+    let customerResObj: ApiRespDTO<any>;
+
     this.logger.info(customerResponse);
     if (customerResponse.data.length > 0) {
       customerResObj = {
@@ -68,7 +78,7 @@ export class PaymentMethodsController {
     }
   }
 
-  private timeout(ms) {
+  private timeout(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
@@ -84,8 +94,10 @@ export class PaymentMethodsController {
     description: 'If provided query is not valid',
   })
   @Get()
-  async getPaymentMethods(@Query() request: StripeGetPaymentMethodsReqDTO) {
-    let paymentMethodsResObj = new ApiRespDTO<any>();
+  async getPaymentMethods(
+    @Query() request: StripeGetPaymentMethodsReqDTO,
+  ): Promise<ApiRespDTO<any>> {
+    let paymentMethodsResObj: ApiRespDTO<any>;
 
     this.logger.info('stripeCustomerId: ' + request.stripe_customer_id);
     const paymentMethods = await this.paymentMethodsService.getPaymentMethods(
@@ -106,7 +118,7 @@ export class PaymentMethodsController {
         success: true,
         status: 1000,
         data: {
-          paymentMethods:[]
+          paymentMethods: [],
         },
         message: 'Payment methods not found',
       };
@@ -125,8 +137,10 @@ export class PaymentMethodsController {
     status: 400,
   })
   @Post('customer/setup-intent')
-  async createSetupIntent(@Body() request: StripeSetupIntentReqDTO) {
-    let createSetupIntentResObj = new ApiRespDTO<any>();
+  async createSetupIntent(
+    @Body() request: StripeSetupIntentReqDTO,
+  ): Promise<ApiRespDTO<any>> {
+    let createSetupIntentResObj: ApiRespDTO<any>;
     this.logger.info('createSetupIntent request', request);
 
     const setupIntentRes = await this.paymentMethodsService.createSetupIntent(
@@ -160,16 +174,11 @@ export class PaymentMethodsController {
       'Error in fetch payment details - If payment method id is invalid',
     type: ApiRespDTO,
   })
-  @ApiBadRequestResponse({
-    status: 400,
-  })
+  @ApiBadRequestResponse({ status: 400 })
   @Get('customer/payment-details/:id')
-  async getPaymentDetails(@Param() params: StripeGetPaymentDetailsReqDTO) {
-    let paymentDetailsRes = new ApiRespDTO<any>();
-    paymentDetailsRes =
-      await this.paymentMethodsService.getPaymentDetails(
-        params.id,
-      );
-    return paymentDetailsRes;
+  async getPaymentDetails(
+    @Param() params: StripeGetPaymentDetailsReqDTO,
+  ): Promise<ApiRespDTO<any>> {
+    return await this.paymentMethodsService.getPaymentDetails(params.id);
   }
 }
