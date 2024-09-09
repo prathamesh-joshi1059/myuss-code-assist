@@ -1,5 +1,5 @@
 Clean up any redundant or unused code
 Don't remove any previous comments
-Assert better types also avoid use of 'any' keyword and update where possible 
-Refactor code to optimize performance and readability without changing functionality
+Assert types where required 
+Refactor code without changing functionality
 Apply Prettier rules for consistent formatting
