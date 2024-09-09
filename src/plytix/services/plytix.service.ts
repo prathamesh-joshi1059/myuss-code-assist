@@ -143,13 +143,7 @@ export class PlytixService {
     }
   }
 
-<<<<<<< HEAD
-  appropriate;
-
-  async processPubsubMessage(fileName: string) {
-=======
   async processPubsubMessage(fileName: string): Promise<void> {
->>>>>>> a694d17279c14dcfb2d1f3153366509f482cf352
     try {
       const [fileBuffer] = await this.storage.bucket(this.bucketName).file(fileName).download();
       const fileContents = fileBuffer.toString('utf8');
@@ -174,8 +168,8 @@ export class PlytixService {
     }
   }
 
-  private async removeSpacesFromKeys(obj: Record<string, any>): Promise<Record<string, any>> {
-    const newJson: Record<string, any> = {};
+  private async removeSpacesFromKeys(obj: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const newJson: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj)) {
       const newKey = key.replace(/\s+/g, '');
       newJson[newKey] = value;
@@ -183,11 +177,8 @@ export class PlytixService {
     return newJson;
   }
 
-  private convertToPlainObject(instance: any): object {
-    if (instance && typeof instance.toJSON === 'function') {
-      return instance.toJSON();
-    }
-    return { ...instance };
+  private convertToPlainObject(instance: Record<string, unknown>): object {
+    return instance && typeof (instance as any).toJSON === 'function' ? (instance as any).toJSON() : { ...instance };
   }
 
   private extractFunctionNameFromError(error: Error): string {
