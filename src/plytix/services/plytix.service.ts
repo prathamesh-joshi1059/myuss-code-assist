@@ -163,6 +163,7 @@ export class PlytixService {
       await this.firestoreService.batchUpsertDocuments<PlytixProductModel>('plytixProducts', documents);
       this.logger.log(`In processPubsubMessage function: Processed all products from ${fileName} file`);
       return;
+      
     } catch (error) {
       const functionName = error.stack.match(/at (.*) \(/)[1];
       this.logger.error(
