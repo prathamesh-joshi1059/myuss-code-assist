@@ -3,7 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Message, PubSub } from '@google-cloud/pubsub';
 import { FirestoreService } from '../../backend/google/firestore/firestore.service';
 import { PlytixWebhookCallReqDTO } from '../models/plytix-webhook-call-req.dto';
-import { validate } from 'class-validator';
+import { validate, ValidationError } from 'class-validator';
 import csvtojson from 'csvtojson';
 import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
@@ -31,7 +31,7 @@ export class PlytixService {
     this.listenForMessages();
   }
 
-  async plytixWebhookCall(plytixWebhookCallReqDto: PlytixWebhookCallReqDTO) {
+  async plytixWebhookCall(plytixWebhookCallReqDto: PlytixWebhookCallReqDTO): Promise<void> {
     try {
       const { processed_products, feed_url, channel_processing_status } = plytixWebhookCallReqDto;
       const domain = new URL(feed_url).hostname;
@@ -61,10 +61,9 @@ export class PlytixService {
           resumable: false,
         });
         this.logger.log(`In plytixWebhookCall function: csv file saved: ${filename}`);
-        return;
       }
     } catch (error) {
-      const functionName = error.stack.match(/at (.*) \(/)[1];
+      const functionName = this.extractFunctionNameFromError(error);
       this.logger.error(
         `Error in plytixWebhookCall function: Error = ${error.message} : detail error stack = ${functionName}`,
       );
@@ -107,7 +106,7 @@ export class PlytixService {
       for (const item of jsonData) {
         const dto = new ValidateFeedDataDto();
         Object.assign(dto, item);
-        const errors = await validate(dto);
+        const errors: ValidationError[] = await validate(dto);
         if (errors.length) {
           throw new Error(`Schema validation failed: ${errors.length} errors found.`);
         }
@@ -118,7 +117,7 @@ export class PlytixService {
     }
   }
 
-  private async listenForMessages() {
+  private async listenForMessages(): Promise<void> {
     try {
       const subscription = this.pubSubClient.subscription(this.subscriptionName);
       if (subscription) {
@@ -132,25 +131,24 @@ export class PlytixService {
     }
   }
 
-  private async messageHandler(message: Message) {
+  private async messageHandler(message: Message): Promise<void> {
     try {
       const messageBody = JSON.parse(message.data.toString());
       const fileName = messageBody.name;
       this.logger.log(`In messageHandler function: detected file change in bucket: file name = ${fileName}`);
-      this.processPubsubMessage(fileName);
+      await this.processPubsubMessage(fileName);
       message.ack();
     } catch (error) {
       this.logger.error(`Error in messageHandler function: Error processing message: ${error}`);
     }
   }
 
-
-  async processPubsubMessage(fileName: string) {
+  async processPubsubMessage(fileName: string): Promise<void> {
     try {
       const [fileBuffer] = await this.storage.bucket(this.bucketName).file(fileName).download();
       const fileContents = fileBuffer.toString('utf8');
-      const jsonData = await csvtojson().fromString(fileContents);
       await this.validateFeedData(fileContents);
+      const jsonData = await csvtojson().fromString(fileContents);
       const documents: { [id: string]: PlytixProductModel } = {};
       for (const record of jsonData) {
         const modifiedJson = await this.removeSpacesFromKeys(record);
@@ -161,9 +159,8 @@ export class PlytixService {
 
       await this.firestoreService.batchUpsertDocuments<PlytixProductModel>('plytixProducts', documents);
       this.logger.log(`In processPubsubMessage function: Processed all products from ${fileName} file`);
-      return;
     } catch (error) {
-      const functionName = error.stack.match(/at (.*) \(/)[1];
+      const functionName = this.extractFunctionNameFromError(error);
       this.logger.error(
         `Error in processPubsubMessage function: Error in file ${fileName} from storage: Error = ${error.message} : detail error stack = ${functionName}`,
       );
@@ -171,9 +168,8 @@ export class PlytixService {
     }
   }
 
-  async removeSpacesFromKeys(obj) {
-    const newJson = {};
-
+  private async removeSpacesFromKeys(obj: Record<string, any>): Promise<Record<string, any>> {
+    const newJson: Record<string, any> = {};
     for (const [key, value] of Object.entries(obj)) {
       const newKey = key.replace(/\s+/g, '');
       newJson[newKey] = value;
@@ -181,10 +177,14 @@ export class PlytixService {
     return newJson;
   }
 
-  private convertToPlainObject(instance) {
+  private convertToPlainObject(instance: any): object {
     if (instance && typeof instance.toJSON === 'function') {
       return instance.toJSON();
     }
     return { ...instance };
+  }
+
+  private extractFunctionNameFromError(error: Error): string {
+    return error.stack?.match(/at (.*) \(/)?.[1] || 'Unknown function';
   }
 }
