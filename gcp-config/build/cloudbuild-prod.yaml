@@ -1,0 +1,57 @@
+steps:
+ # Build the container image
+- name: 'gcr.io/cloud-builders/docker'
+  args: 
+    - 'build'
+    - '--tag=us-central1-docker.pkg.dev/$PROJECT_ID/myuss-api/myuss-api:$SHORT_SHA'
+    - '--tag=us-central1-docker.pkg.dev/$PROJECT_ID/myuss-api/myuss-api:$TAG_NAME'
+    - '--file=./Dockerfile.prod'
+    - '.'
+# Scan and check for vulnerabilities https://cloud.google.com/artifact-analysis/docs/ods-cloudbuild#build_and_scan
+# Scan docker image
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: /bin/bash
+  args:
+    - -c
+    - |
+      gcloud artifacts docker images scan us-central1-docker.pkg.dev/$PROJECT_ID/myuss-api/myuss-api:$TAG_NAME \
+      --format='value(response.scan)' > /workspace/scan_id.txt
+# Perform a security check for production candidates 
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: /bin/bash
+  args:
+     - -c
+     - |
+       gcloud artifacts docker images list-vulnerabilities $(cat /workspace/scan_id.txt) \
+       --format='value(vulnerability.effectiveSeverity)' | if grep -Exq "$_SEVERITY"; \
+       then echo 'Failed vulnerability check' && exit 1; else exit 0; fi
+# Push the container image to Artifact Registry
+- name: 'gcr.io/cloud-builders/docker'
+  args: 
+    - 'push'
+    - 'us-central1-docker.pkg.dev/$PROJECT_ID/myuss-api/myuss-api:$SHORT_SHA'
+# Add tags
+- name: gcr.io/cloud-builders/gcloud
+  args: 
+    - 'artifacts'
+    - 'docker'
+    - 'tags'
+    - 'add'
+    - 'us-central1-docker.pkg.dev/$PROJECT_ID/myuss-api/myuss-api:$SHORT_SHA'
+    - 'us-central1-docker.pkg.dev/$PROJECT_ID/myuss-api/myuss-api:$TAG_NAME'
+# For production candidates, deployment is done using Cloud Deploy
+# start a new release
+- name: 'gcr.io/cloud-builders/gcloud'
+  entrypoint: bash
+  args: 
+    - '-c'
+    - |
+      version=$TAG_NAME
+      gcloud deploy releases create myuss-api-${version//./-} \
+        --project=uss-portal-devops \
+        --delivery-pipeline=myuss-api-pipeline \
+        --region=us-central1 \
+        --source=./gcp-config/deploy \
+        --images=myuss-api-image=us-central1-docker.pkg.dev/uss-portal-devops/myuss-api/myuss-api:$TAG_NAME
+options:
+  logging: CLOUD_LOGGING_ONLY

@@ -1,0 +1,25 @@
+apiVersion: skaffold/v3alpha1
+kind: Config
+metadata: 
+  name: deploy-run-myuss-api
+profiles:
+- name: integration
+  manifests:
+    rawYaml:
+    - myuss-api-int.yaml
+- name: qa
+  manifests:
+    rawYaml:
+    - myuss-api-qa.yaml
+- name: stage
+  manifests:
+    rawYaml:
+    - myuss-api-stage.yaml
+- name: prod
+  manifests:
+    rawYaml:
+    - myuss-api-prod.yaml
+deploy:
+  cloudrun:
+      projectid: uss-portal-devops
+      region: us-central1

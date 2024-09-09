@@ -1,0 +1,35 @@
+# demo from here https://blog.devops.dev/dockerizing-nestjs-application-a5240c86c3a0
+# repo here https://github.com/aaabramov/nestjs-docker
+# need to deal with Apache license if moving beyond POC with this Dockerfile
+ 
+# Use the official lightweight Node.js 18 image.
+# https://hub.docker.com/_/node
+FROM node:hydrogen-alpine as development
+
+WORKDIR /usr/src/app
+
+# Copy configuration files
+COPY tsconfig*.json ./
+COPY package*.json ./
+COPY .env ./
+
+# Install dependencies from package-lock.json, see https://docs.npmjs.com/cli/v7/commands/npm-ci
+#RUN npm ci
+RUN npm i --env=production
+
+# Copy application sources (.ts, .tsx, js)
+COPY . ./
+
+# # FROM dev as testing
+ENV ENVIRONMENT=production
+
+# # Run tests
+#RUN ["npm", "run", "test"]
+
+# Build application (produces dist/ folder)
+RUN npm run build
+
+EXPOSE 8090
+
+# Start application
+CMD [ "node", "dist/main.js" ]

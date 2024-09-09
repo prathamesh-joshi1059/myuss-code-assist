@@ -1,0 +1,162 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: myuss-api-int
+annotations:
+  runapps.googleapis.com/integrations: myuss-api-int-redis
+  run.googleapis.com/ingress: all
+  run.googleapis.com/ingress-status: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: '1'
+        autoscaling.knative.dev/maxScale: '100'
+        run.googleapis.com/vpc-access-egress: private-ranges-only
+        run.googleapis.com/vpc-access-connector: projects/uss-portal-dev/locations/us-central1/connectors/runapps-default-default
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      serviceAccountName: myuss-api-int@uss-portal-dev.iam.gserviceaccount.com
+      containers:
+        # define the image on the command line call
+        - image: myuss-api-image #us-central1-docker.pkg.dev/uss-portal-devops/myuss-api/myuss-api:latest
+          ports:
+            - name: http1
+              containerPort: 8090
+          env:
+            - name: REDISHOST
+              value: 10.203.72.67
+            - name: ENVIRONMENT
+              value: int
+            - name: AUTH0_DOMAIN
+              value: auth-int.myuss.com
+            - name: AUTH0_CLIENT_ID
+              value: CSVTmdRo8NY2I17Oxayy58MxIp4xEtKl
+            - name: AUTH0_AUDIENCE
+              value: https://api-int.myuss.com
+            - name: AUTH0_MANAGEMENT_URL
+              value: https://myuss-int.us.auth0.com
+            - name: AUTH0_MGMT_CLIENT_ID
+              value: tZsXTEjJDlsAgCeerlIS88cKULk6u8Ie
+            - name: AUTH0_M2M_CLIENT_ID
+              value: AazGA6ohJukKIraHHYpJdBxWLGT5oUeH
+            - name: AUTH0_DATABASE_CONNECTION
+              value: Username-Password-Authentication
+            - name: AUTH0_DATABASE_CONNECTION_ID
+              value: con_igYi8IlSZ6d8pojs
+            - name: SFDC_USERNAME
+              value: myuss@unitedsiteservices.com.int2
+            - name: SFDC_REST_URI
+              value: https://ussprod--int2.sandbox.my.salesforce.com/
+            - name: SFDC_CLIENT_ID
+              value: 3MVG9iBaHQRfreBmzVhejYNV5jtrzSI_AFVsMYiQ2aCdlOpo.4sBGzNe_.dCy.yWU1Kws8xMCNwG45X9a56yR
+            - name: SFDC_REDIRECT_URI
+              value: https://api-int.myuss.com/oauth/_callback
+            - name: SFMC_RFQ_FORM_URL
+              value: https://mccw4hjt-tt8w77267p9mwcmz3py.pub.sfmc-content.com/kgcll23vxun
+            - name: BYPASS_RECAPTCHA
+              value: false
+            - name: RECAPTCHA_KEY
+              value: 6LeKRn4oAAAAAPj7GH0140NOqyay9APFka80EOz8
+            - name: MYUSS_ACCEPTING_RFQS
+              value: true
+            - name: SFMC_CLIENT_ID
+              value: i5t846wmc04ah554m6pm1836
+            - name: SFMC_AUTH_URL
+              value: https://mccw4hjt-tt8w77267p9mwcmz3py.auth.marketingcloudapis.com/
+            - name: SFMC_ACCOUNT_ID
+              value: 534006584
+            - name: SFMC_RFQ_EVENT_DEFINITION_KEY
+              value: APIEvent-a4e6bf80-5d1e-7bc6-1668-18ae7f634ffa
+            - name: JWT_EXPIRES_IN
+              value: 1d
+            - name: FIRESTORE_DB
+              value: myuss-int
+            - name: LOG_LEVEL
+              value: INFO
+            - name: GCP_PROJECT_NAME
+              value: uss-portal-dev
+            - name: STRIPE_PAYMENT_METHOD_CONFIGURATION_ID
+              value: pmc_1O35HdHLNEo6wiDGIXNFbxVR
+            - name: AVALARA_USERNAME
+              value: myuss@unitedsiteservices.com
+            - name: AVALARA_LOGGING_ENABLED
+              value: false
+            - name: GOOGLE_MAPS_API_KEY
+              value: AIzaSyBGrlr5WM3-W9XhRENythtloV6_2kq7_Tc
+            - name: USE_STANDALONE_PRICING_ENGINE
+              value: true
+            - name: ENFORCE_RBAC
+              value: true
+            - name: GCS_BUCKET
+              value: uss-portal-dev.appspot.com
+            - name: PUB_SUB_SUBSCRIPTION
+              value: plytix-feed-sub-ci
+            - name: WHITELIST_FEED_URL
+              value: pim.plytix.com
+            - name: SFMC_ST_MIGRATION_DE_KEY
+              value: F63C4AD3-2747-4F8F-9E75-D76FDF838378
+            - name: SFMC_ST_NEW_USER_EVENT_KEY
+              value: SidetradeNewUserINT
+            - name: MYUSS_DEFAULT_MODULES
+              value: core,home,quotes,orders,billing,easy_pay
+            - name: ST_DEFAULT_MODULES
+              value: core,billing,easy_pay
+            - name: ST_DEFAULT_ROLE
+              value: Standard User
+            - name: AUTH0_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: int-AUTH0_CLIENT_SECRET
+            - name: AUTH0_M2M_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: int-AUTH0_M2M_CLIENT_SECRET
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: int-JWT_SECRET
+            - name: SFDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: int-SFDC_CLIENT_SECRET
+            - name: SFDC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: int-SFDC_PASSWORD
+            - name: SFDC_SECURITY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: int-SFDC_SECURITY_TOKEN
+            - name: SFMC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: int-SFMC_CLIENT_SECRET
+            - name: STRIPE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: int-STRIPE_SECRET_KEY
+            - name: ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: int-ADMIN_KEY
+            - name: AVALARA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: int-AVALARA_PASSWORD
+            - name: AUTH0_MGMT_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: int-AUTH0_MGMT_CLIENT_SECRET

@@ -1,0 +1,35 @@
+export class Request_for_Quote__c {
+  RFQ_ID__c: string;
+  SMS_Opt_In__c: boolean;
+  Sent_to_Marketing_Cloud__c: boolean;
+  RFQ_Form_Status__c: 'incomplete' | 'complete';
+  Company_Name__c: string;
+  First_Name__c: string;
+  Last_Name__c: string;
+  Phone_Number__c: string;
+  Email_Address__c: string;
+  Start_Date__c: Date;
+  End_Date__c: Date;
+  Delivery_Zip_Code__c: string;
+  Purpose_of_Rental__c: 'Business' | 'Personal' | 'Government';
+  Use_Type__c: 'Construction' | 'Event' | 'Other';
+  Rental_Duration__c: 'Under 7 Days' | '0 to 2 Months' | '3 to 5 Months' | '6+ Months';
+  Specialty_Products__c: string;
+  Standard_Products__c: string;
+  Last_Click_ID__c: string;
+  UTM_Values__c: string;
+  MyUSS_Eligible__c: boolean;
+  MyUSS_Eligibility_Details__c: string;
+  MyUSS_Eligibility_Error__c: string;
+  MyUSS_Existing_User__c: boolean;
+  LastModifiedDate: Date;
+  LastModifiedById: string;
+  CreatedDate: Date;
+  CreatedById: string;
+  Lead__c: string;
+  Account__c: string;
+  ProbabilityModel__c: string;
+  Win_Probability__c: number;
+  Priority_Group__c: string;
+  Google_Analytics_ID__c: string;
+}

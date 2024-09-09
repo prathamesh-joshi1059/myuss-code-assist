@@ -1,0 +1,70 @@
+# https://cloud.google.com/deploy/docs/config-files
+apiVersion: deploy.cloud.google.com/v1
+kind: DeliveryPipeline
+metadata:
+  name: myuss-api-pipeline
+description: MyUSS API delivery pipeline
+serialPipeline:
+  stages:
+  - targetId: myuss-api-int-run
+    profiles: [integration]
+  - targetId: myuss-api-qa-run
+    profiles: [qa]
+  - targetId: myuss-api-stage-run
+    profiles: [stage]
+  - targetId: myuss-api-prod-run
+    profiles: [prod]
+---
+apiVersion: deploy.cloud.google.com/v1
+kind: Target
+metadata:
+  name: myuss-api-int-run
+description: MyUSS API service (INT)
+run:
+  location: projects/uss-portal-dev/locations/us-central1
+executionConfigs:
+- usages:
+  - RENDER
+  - DEPLOY
+  serviceAccount: uss-build-deploy-service-acct@uss-portal-devops.iam.gserviceaccount.com
+---
+apiVersion: deploy.cloud.google.com/v1
+kind: Target
+metadata:
+  name: myuss-api-qa-run
+description: MyUSS API service (QA)
+run:
+  location: projects/uss-portal-dev/locations/us-central1
+executionConfigs:
+- usages:
+  - RENDER
+  - DEPLOY
+  serviceAccount: uss-build-deploy-service-acct@uss-portal-devops.iam.gserviceaccount.com
+---
+apiVersion: deploy.cloud.google.com/v1
+kind: Target
+metadata:
+  name: myuss-api-stage-run
+description: MyUSS API service (Stage)
+requireApproval: true
+run:
+  location: projects/uss-portal-dev/locations/us-central1
+executionConfigs:
+- usages:
+  - RENDER
+  - DEPLOY
+  serviceAccount: uss-build-deploy-service-acct@uss-portal-devops.iam.gserviceaccount.com
+---
+apiVersion: deploy.cloud.google.com/v1
+kind: Target
+metadata:
+  name: myuss-api-prod-run
+description: MyUSS API service (Prod)
+requireApproval: true
+run:
+  location: projects/uss-portal-prod/locations/us-central1
+executionConfigs:
+- usages:
+  - RENDER
+  - DEPLOY
+  serviceAccount: uss-build-deploy-service-acct@uss-portal-devops.iam.gserviceaccount.com
