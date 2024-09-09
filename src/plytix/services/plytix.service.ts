@@ -144,7 +144,6 @@ export class PlytixService {
     }
   }
 
-  appropriate;
 
   async processPubsubMessage(fileName: string) {
     try {
