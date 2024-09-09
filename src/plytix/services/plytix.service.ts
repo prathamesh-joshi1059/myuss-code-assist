@@ -120,12 +120,8 @@ export class PlytixService {
   private async listenForMessages(): Promise<void> {
     try {
       const subscription = this.pubSubClient.subscription(this.subscriptionName);
-      if (subscription) {
-        subscription.on('message', (message) => this.messageHandler(message));
-        this.logger.log(`Listening for messages on ${this.subscriptionName}`);
-      } else {
-        this.logger.error(`Subscription ${this.subscriptionName} not found`);
-      }
+      subscription.on('message', (message) => this.messageHandler(message));
+      this.logger.log(`Listening for messages on ${this.subscriptionName}`);
     } catch (error) {
       this.logger.error(`Error initializing subscription: ${error.message}`);
     }
@@ -147,8 +143,8 @@ export class PlytixService {
     try {
       const [fileBuffer] = await this.storage.bucket(this.bucketName).file(fileName).download();
       const fileContents = fileBuffer.toString('utf8');
-      const jsonData = await csvtojson().fromString(fileContents);
       await this.validateFeedData(fileContents);
+      const jsonData = await csvtojson().fromString(fileContents);
       const documents: { [id: string]: PlytixProductModel } = {};
       for (const record of jsonData) {
         const modifiedJson = await this.removeSpacesFromKeys(record);
@@ -171,6 +167,7 @@ export class PlytixService {
       throw error;
     }
   }
+
   private async removeSpacesFromKeys(obj: Record<string, any>): Promise<Record<string, any>> {
     const newJson: Record<string, any> = {};
     for (const [key, value] of Object.entries(obj)) {
