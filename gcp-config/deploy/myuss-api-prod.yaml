@@ -1,0 +1,164 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: myuss-api
+annotations:
+  runapps.googleapis.com/integrations: myuss-redis
+  run.googleapis.com/ingress: all
+  run.googleapis.com/ingress-status: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: '1'
+        autoscaling.knative.dev/maxScale: '100'
+        run.googleapis.com/vpc-access-egress: private-ranges-only
+        run.googleapis.com/vpc-access-connector: projects/uss-portal-prod/locations/us-central1/connectors/runapps-default-default
+        run.googleapis.com/startup-cpu-boost: 'true'
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      serviceAccountName: myuss-api@uss-portal-prod.iam.gserviceaccount.com
+      containers:
+        - image: myuss-api-image
+          ports:
+            - name: http1
+              containerPort: 8090
+          env:
+            - name: REDISHOST
+              value: 10.218.171.11
+            - name: ENVIRONMENT
+              value: production
+            - name: AUTH0_DOMAIN
+              value: auth.myuss.com
+            - name: AUTH0_CLIENT_ID
+              value: jLsMKHXNSb9Y6zpBHYqfdOSh9TLpBy9F
+            - name: AUTH0_AUDIENCE
+              value: https://api.myuss.com
+            - name: AUTH0_MANAGEMENT_URL
+              value: https://myuss.us.auth0.com
+            - name: AUTH0_MGMT_CLIENT_ID
+              value: pBoUqFRDBQg7QdAHAr8NzE42ILcQESI9
+            - name: AUTH0_M2M_CLIENT_ID
+              value: ElxoRc3iFeE6qr1fui7eH51zqqkKwKcx
+            - name: AUTH0_DATABASE_CONNECTION
+              value: Username-Password-Authentication
+            - name: AUTH0_DATABASE_CONNECTION_ID
+              value: con_ziOfigbkgd5SDXjc
+            - name: SFDC_USERNAME
+              value: myuss@unitedsiteservices.com
+            - name: SFDC_REST_URI
+              value: https://ussprod.my.salesforce.com/
+            - name: SFDC_CLIENT_ID
+              value: 3MVG9mclR62wycM1p5hu_PW.G9HIEZMerF2yAk8Es87Meg5JMaQkLLQ0HNr.gbXfNF0IkGGGMWTCUIdQ_M0Ke
+            - name: SFDC_REDIRECT_URI
+              value: http://api.myuss.com/oauth/_callback
+            - name: SFMC_RFQ_FORM_URL
+              value: https://mccw4hjt-tt8w77267p9mwcmz3py.pub.sfmc-content.com/zz3mtwxv3bi
+            - name: BYPASS_RECAPTCHA
+              value: false
+            - name: RECAPTCHA_KEY
+              value: 6LfJYJcoAAAAACeeiKM4ylU7vlSm79djhlp3OeY6
+            - name: MYUSS_ACCEPTING_RFQS
+              value: true
+            - name: SFMC_CLIENT_ID
+              value: q0txtt3w0yaod80axl137xls
+            - name: SFMC_AUTH_URL
+              value: https://mccw4hjt-tt8w77267p9mwcmz3py.auth.marketingcloudapis.com/
+            - name: SFMC_ACCOUNT_ID
+              value: 534006583
+            - name: SFMC_RFQ_EVENT_DEFINITION_KEY
+              value: Z9eJB8dDQ9ARPWkW
+            - name: JWT_EXPIRES_IN
+              value: 1h
+            - name: FIRESTORE_DB
+              value: myuss
+            - name: LOG_LEVEL
+              value: ERROR
+            - name: GCP_PROJECT_NAME
+              value: uss-portal-prod
+            - name: STRIPE_PAYMENT_METHOD_CONFIGURATION_ID
+              value: pmc_1O35LdEQjJ9u1koGfj6VnjWC
+            - name: AVALARA_USERNAME
+              value: myuss@unitedsiteservices.com
+            - name: GOOGLE_MAPS_API_KEY
+              value: AIzaSyAOlUldmEOymP2kzp6UdL20fsAM8K4K4YA
+            - name: USE_STANDALONE_PRICING_ENGINE
+              value: true
+            - name: ENFORCE_RBAC
+              value: true
+            - name: GCS_BUCKET
+              value: uss-portal-dev.appspot.com
+            - name: PUB_SUB_SUBSCRIPTION
+              value: plytix-feed-sub
+            - name: WHITELIST_FEED_URL
+              value: pim.plytix.com
+            - name: SFMC_ST_MIGRATION_DE_KEY
+              value: B5F70DDB-2606-455D-AA1F-0311DC687065
+            - name: SFMC_ST_NEW_USER_EVENT_KEY
+              value: SidetradeNewUserProduction
+            - name: MYUSS_DEFAULT_MODULES
+              value: core,home,quotes,orders,billing,easy_pay
+            - name: ST_DEFAULT_MODULES
+              value: core,billing,easy_pay
+            - name: ST_DEFAULT_ROLE
+              value: Standard User
+            - name: AUTH0_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: AUTH0_CLIENT_SECRET
+            - name: AUTH0_M2M_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: AUTH0_M2M_CLIENT_SECRET
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: JWT_SECRET
+            - name: SFDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: SFDC_CLIENT_SECRET
+            - name: SFDC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: SFDC_PASSWORD
+            - name: SFDC_SECURITY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: SFDC_SECURITY_TOKEN
+            - name: SFMC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: SFMC_CLIENT_SECRET
+            - name: STRIPE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: STRIPE_SECRET_KEY
+            - name: ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: ADMIN_KEY
+            - name: AVALARA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: AVALARA_PASSWORD
+            - name: AUTH0_MGMT_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: AUTH0_MGMT_CLIENT_SECRET
+          resources:
+            limits:
+              cpu: 2000m
+              memory: 1Gi

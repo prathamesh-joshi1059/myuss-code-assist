@@ -1,0 +1,29 @@
+<html>
+  <head>
+    <title>reCAPTCHA demo: log the token</title>
+        <script type="text/javascript">
+      var widgetId1;
+      var onloadCallback = function() {
+        // Renders the HTML element with id 'example1' as a reCAPTCHA widget.
+        // The id of the reCAPTCHA widget is assigned to 'widgetId1'.
+        widgetId1 = grecaptcha.enterprise.render('example1', {
+          'sitekey' : '6LeKRn4oAAAAAPj7GH0140NOqyay9APFka80EOz8',
+          'action': 'submit_rfq',
+          'theme' : 'light'
+        });
+      };
+    </script>
+  </head>
+  <body>
+    <!-- The g-recaptcha-response string is logged to the console upon submit. -->
+    <form action="javascript:console.log(grecaptcha.enterprise.getResponse(widgetId1));">
+      <div id="example1"></div>
+      <br>
+      <input type="submit" value="Get &amp; Log Token">
+    </form>
+    <br>
+     <script src="https://www.google.com/recaptcha/enterprise.js?onload=onloadCallback&render=explicit"
+        async defer>
+    </script>
+  </body>
+</html>

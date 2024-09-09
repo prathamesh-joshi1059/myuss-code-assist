@@ -1,0 +1,32 @@
+steps:
+ # Build the container image
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+    - 'build'
+    - '--tag=us-central1-docker.pkg.dev/$PROJECT_ID/myuss-api/myuss-api:$SHORT_SHA'
+    - '--file=./Dockerfile.ci'
+    - '.'
+  # args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/myuss-api/myuss-api:$SHORT_SHA', '.']
+# Push the container image to Artifact Registry
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/myuss-api/myuss-api:$SHORT_SHA']
+# Deploy container image to Cloud Run
+- name: 'gcr.io/cloud-builders/gcloud'
+  args: 
+    - 'run'
+    - 'deploy'
+    - 'myuss-api-ci'
+    - '--image'
+    - 'us-central1-docker.pkg.dev/$PROJECT_ID/myuss-api/myuss-api:$SHORT_SHA'
+    - '--region'
+    - 'us-central1'
+    - '--project'
+    - 'uss-portal-dev'
+    - '--platform'
+    - 'managed'
+    - '--allow-unauthenticated'
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/myuss-api/myuss-api:$SHORT_SHA'
+options:
+  logging: CLOUD_LOGGING_ONLY
+

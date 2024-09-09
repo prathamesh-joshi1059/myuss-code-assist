@@ -1,0 +1,159 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: myuss-api-stage
+annotations:
+  runapps.googleapis.com/integrations: myuss-api-stage-redis
+  run.googleapis.com/ingress: all
+  run.googleapis.com/ingress-status: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: '1'
+        autoscaling.knative.dev/maxScale: '100'
+        run.googleapis.com/vpc-access-egress: private-ranges-only
+        run.googleapis.com/vpc-access-connector: projects/uss-portal-dev/locations/us-central1/connectors/runapps-default-default
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      serviceAccountName: myuss-api-stage@uss-portal-dev.iam.gserviceaccount.com
+      containers:
+        - image: myuss-api-image
+          ports:
+            - name: http1
+              containerPort: 8090
+          env:
+            - name: REDISHOST
+              value: 10.192.176.211
+            - name: ENVIRONMENT
+              value: stage
+            - name: AUTH0_DOMAIN
+              value: auth-stage.myuss.com
+            - name: AUTH0_CLIENT_ID
+              value: QtACuifhR3OFEYf2m9Q2NI1Z9kKuht0C
+            - name: AUTH0_AUDIENCE
+              value: https://api-stage.myuss.com
+            - name: AUTH0_MANAGEMENT_URL
+              value: https://myuss-stage.us.auth0.com
+            - name: AUTH0_MGMT_CLIENT_ID
+              value: UpOgSOECcZERCnlhwnseoPScmdkOhQoT
+            - name: AUTH0_M2M_CLIENT_ID
+              value: oFq0mmv1vAYPHwlYm6otBdiuSyubtKK4
+            - name: AUTH0_DATABASE_CONNECTION
+              value: Username-Password-Authentication
+            - name: AUTH0_DATABASE_CONNECTION_ID
+              value: con_P2JWAIolEkpBhwvK
+            - name: SFDC_USERNAME
+              value: myuss@unitedsiteservices.com.stage
+            - name: SFDC_REST_URI
+              value: https://ussprod--stage.sandbox.my.salesforce.com/
+            - name: SFDC_CLIENT_ID
+              value: 3MVG9iBaHQRfreBmzVhejYNV5jp9SZBgV_FaOOSTDxROLHU6nrowTvavZOXnXggxcPeX1twhtIIUYu.ZeAl4r
+            - name: SFDC_REDIRECT_URI
+              value: http://api-stage.myuss.com/oauth/_callback
+            - name: SFMC_RFQ_FORM_URL
+              value: https://mccw4hjt-tt8w77267p9mwcmz3py.pub.sfmc-content.com/kgcll23vxun
+            - name: BYPASS_RECAPTCHA
+              value: false
+            - name: RECAPTCHA_KEY
+              value: 6LeKRn4oAAAAAPj7GH0140NOqyay9APFka80EOz8
+            - name: MYUSS_ACCEPTING_RFQS
+              value: true
+            - name: SFMC_CLIENT_ID
+              value: i5t846wmc04ah554m6pm1836
+            - name: SFMC_AUTH_URL
+              value: https://mccw4hjt-tt8w77267p9mwcmz3py.auth.marketingcloudapis.com/
+            - name: SFMC_ACCOUNT_ID
+              value: 534006584
+            - name: SFMC_RFQ_EVENT_DEFINITION_KEY
+              value: APIEvent-a4e6bf80-5d1e-7bc6-1668-18ae7f634ffa
+            - name: JWT_EXPIRES_IN
+              value: 1h
+            - name: FIRESTORE_DB
+              value: myuss-stage
+            - name: LOG_LEVEL
+              value: WARN
+            - name: GCP_PROJECT_NAME
+              value: uss-portal-dev
+            - name: STRIPE_PAYMENT_METHOD_CONFIGURATION_ID
+              value: pmc_1O35KJEQjJ9u1koGYCbygCAt
+            - name: AVALARA_USERNAME
+              value: myuss@unitedsiteservices.com
+            - name: GOOGLE_MAPS_API_KEY
+              value: AIzaSyBGrlr5WM3-W9XhRENythtloV6_2kq7_Tc
+            - name: USE_STANDALONE_PRICING_ENGINE
+              value: true
+            - name: ENFORCE_RBAC
+              value: true
+            - name: GCS_BUCKET
+              value: uss-portal-dev.appspot.com
+            - name: PUB_SUB_SUBSCRIPTION
+              value: plytix-feed-sub-stage
+            - name: WHITELIST_FEED_URL
+              value: pim.plytix.com
+            - name: SFMC_ST_MIGRATION_DE_KEY
+              value: 7830F540-B037-4FCD-8ABA-7F6A06057223
+            - name: SFMC_ST_NEW_USER_EVENT_KEY
+              value: SidetradeNewUserStage
+            - name: MYUSS_DEFAULT_MODULES
+              value: core,home,quotes,orders,billing,easy_pay
+            - name: ST_DEFAULT_MODULES
+              value: core,billing,easy_pay
+            - name: ST_DEFAULT_ROLE
+              value: Standard User
+            - name: AUTH0_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: stage-AUTH0_CLIENT_SECRET
+            - name: AUTH0_M2M_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: stage-AUTH0_M2M_CLIENT_SECRET
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: stage-JWT_SECRET
+            - name: SFDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: stage-SFDC_CLIENT_SECRET
+            - name: SFDC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: stage-SFDC_PASSWORD
+            - name: SFDC_SECURITY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: stage-SFDC_SECURITY_TOKEN
+            - name: SFMC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: stage-SFMC_CLIENT_SECRET
+            - name: STRIPE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: stage-STRIPE_SECRET_KEY
+            - name: ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: stage-ADMIN_KEY
+            - name: AVALARA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: stage-AVALARA_PASSWORD
+            - name: AUTH0_MGMT_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: stage-AUTH0_MGMT_CLIENT_SECRET
