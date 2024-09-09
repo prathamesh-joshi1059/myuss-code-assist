@@ -24,6 +24,7 @@ import { Contract } from 'src/backend/sfdc/model/Contract';
 @Injectable()
 export class CaseService {
   private googleMapApiKey: string;
+
   constructor(
     private sfdcCaseService: SfdcCaseService,
     private trackUserActionService: TrackUserActionService,
@@ -36,20 +37,19 @@ export class CaseService {
   async getAccountWiseCaseList(
     accountId: string,
     fetchCaseReqObject: FetchCaseReqDto,
-    type,
+    type: string,
   ): Promise<ApiRespDTO<FetchCaseRespDto | Object>> {
     let caseList: Case[] = [];
 
-    if (type == 'MySiteServices') {
+    if (type === 'MySiteServices') {
       caseList = await this.sfdcCaseService.getAccountWiseMySiteServicesCaseList(accountId, fetchCaseReqObject);
+    } else if (!fetchCaseReqObject.projectId) {
+      caseList = await this.sfdcCaseService.getAccountWiseCaseList(accountId, fetchCaseReqObject);
     } else {
-      if (!fetchCaseReqObject.projectId) {
-        caseList = await this.sfdcCaseService.getAccountWiseCaseList(accountId, fetchCaseReqObject);
-      } else {
-        caseList = await this.sfdcCaseService.getAccountWiseCaseListForProject(accountId, fetchCaseReqObject);
-      }
+      caseList = await this.sfdcCaseService.getAccountWiseCaseListForProject(accountId, fetchCaseReqObject);
     }
-    if (caseList.length == 0) {
+
+    if (caseList.length === 0) {
       return {
         status: 1000,
         data: {},
@@ -57,50 +57,31 @@ export class CaseService {
         success: true,
       };
     }
-    if (caseList.length > 0) {
-      let caseListArr = [];
-      if (!fetchCaseReqObject.projectId) {
-        for (let i = 0; i < caseList.length; i++) {
-          let caseOrderRelationships: Case_Order_Relationship__c;
-          caseOrderRelationships = caseList[i].CaseOrderRelationships__r?.['records'][0];
-          caseList[i].CaseOrderRelationships__r = [];
-          if (caseOrderRelationships != undefined) {
-            caseList[i].CaseOrderRelationships__r.push(caseOrderRelationships);
-          }
-          caseListArr.push(SFDC_CaseMapper.getMyUSSCaseFromSFDCCase(caseList[i]));
-        }
-      } else {
-        for (let i = 0; i < caseList.length; i++) {
-          let caseToMap = new Case();
-          caseToMap = caseList[i]['Case__r'];
-          caseToMap.CaseOrderRelationships__r = [];
-          caseToMap.CaseOrderRelationships__r.push(new Case_Order_Relationship__c());
-          caseToMap.CaseOrderRelationships__r[0].USS_Order__r = caseList[i]['USS_Order__r'];
 
-          caseListArr.push(SFDC_CaseMapper.getMyUSSCaseFromSFDCCase(caseToMap));
-        }
+    const caseListArr = caseList.map((sfdcCase) => {
+      let caseOrderRelationships: Case_Order_Relationship__c = sfdcCase.CaseOrderRelationships__r?.['records'][0] || null;
+      sfdcCase.CaseOrderRelationships__r = [];
+      if (caseOrderRelationships) {
+        sfdcCase.CaseOrderRelationships__r.push(caseOrderRelationships);
       }
-      return {
-        status: 1000,
-        data: { cases: caseListArr },
-        message: 'Success',
-        success: true,
-      };
-    } else {
-      return {
-        status: 1032,
-        data: {},
-        message: 'Error while fetching cases',
-        success: false,
-      };
-    }
+      return SFDC_CaseMapper.getMyUSSCaseFromSFDCCase(sfdcCase);
+    });
+
+    return {
+      status: 1000,
+      data: { cases: caseListArr },
+      message: 'Success',
+      success: true,
+    };
   }
+
   async getContractWiseCaseList(
     contractId: string,
     fetchCaseDto: FetchCaseReqDto,
   ): Promise<ApiRespDTO<FetchCaseRespDto | Object>> {
-    let caseList = await this.sfdcCaseService.getContractWiseCaseList(contractId, fetchCaseDto);
-    if (caseList.length == 0) {
+    const caseList = await this.sfdcCaseService.getContractWiseCaseList(contractId, fetchCaseDto);
+
+    if (caseList.length === 0) {
       return {
         status: 1000,
         data: {},
@@ -108,35 +89,27 @@ export class CaseService {
         success: true,
       };
     }
-    if (caseList.length > 0) {
-      let caseListArr = [];
-      for (let i = 0; i < caseList.length; i++) {
-        let caseOrderRelationships: Case_Order_Relationship__c;
-        caseOrderRelationships = caseList[i].CaseOrderRelationships__r?.['records'][0];
-        caseList[i].CaseOrderRelationships__r = [];
-        if (caseOrderRelationships != undefined) {
-          caseList[i].CaseOrderRelationships__r.push(caseOrderRelationships);
-        }
-        caseListArr.push(SFDC_CaseMapper.getMyUSSCaseFromSFDCCase(caseList[i]));
-        //caseListArr.push(SFDC_CaseMapper.getMyUSSCaseFromSFDCCase(caseList[i]));
+
+    const caseListArr = caseList.map((sfdcCase) => {
+      let caseOrderRelationships: Case_Order_Relationship__c = sfdcCase.CaseOrderRelationships__r?.['records'][0] || null;
+      sfdcCase.CaseOrderRelationships__r = [];
+      if (caseOrderRelationships) {
+        sfdcCase.CaseOrderRelationships__r.push(caseOrderRelationships);
       }
-      return {
-        status: 1000,
-        data: { cases: caseListArr },
-        message: 'Success',
-        success: true,
-      };
-    } else {
-      return {
-        status: 1032,
-        data: {},
-        message: 'Error while fetching cases',
-        success: false,
-      };
-    }
+      return SFDC_CaseMapper.getMyUSSCaseFromSFDCCase(sfdcCase);
+    });
+
+    return {
+      status: 1000,
+      data: { cases: caseListArr },
+      message: 'Success',
+      success: true,
+    };
   }
+
   async getCaseDetails(id: string): Promise<ApiRespDTO<CaseDetails | {}>> {
-    let caseDetailsResponse = await this.sfdcCaseService.getCaseDetails(id);
+    const caseDetailsResponse = await this.sfdcCaseService.getCaseDetails(id);
+
     if (!caseDetailsResponse || !caseDetailsResponse.success) {
       return {
         status: 1032,
@@ -145,97 +118,49 @@ export class CaseService {
         success: false,
       };
     }
-    let comments = [];
-    let activities = [];
-    let feeds = [];
-    let tasks = [];
-    let events = [];
-    let histories = [];
 
-    if (caseDetailsResponse.comments) {
-      comments = caseDetailsResponse.comments.map((comment) => {
-        return SFDC_MyUSSCaseCommentMapper.getMyUSSCaseCommentFromSFDCMyUSSCaseComment(comment);
-      });
-    }
-    if (caseDetailsResponse.events) {
-      events = caseDetailsResponse.events.map((event) => {
-        return SFDC_EventMapper.getMyUSSEventFromSFDCEvent(event);
-      });
-      for (const event of events) {
-        let activity = '';
-        if (event.subject) {
-          activity = event.subject;
-          if (event.description) {
-            activity = activity + ' - ' + event.description;
-          }
-          activities.push({
-            dateTime: event.createdDate,
-            activity: activity,
-          });
-        }
+    const comments = caseDetailsResponse.comments?.map(comment => 
+      SFDC_MyUSSCaseCommentMapper.getMyUSSCaseCommentFromSFDCMyUSSCaseComment(comment)) || [];
+
+    const activities: Array<{ dateTime: string; activity: string }> = [];
+    
+    const mapEventToActivity = (event: any) => {
+      const activityDescription = event.subject + (event.description ? ` - ${event.description}` : '');
+      activities.push({ dateTime: event.createdDate, activity: activityDescription });
+    };
+
+    const events = caseDetailsResponse.events?.map(event => {
+      mapEventToActivity(event);
+      return SFDC_EventMapper.getMyUSSEventFromSFDCEvent(event);
+    }) || [];
+
+    const tasks = caseDetailsResponse.tasks?.map(task => {
+      const activityDescription = task.subject + (task.description ? ` - ${task.description}` : '');
+      activities.push({ dateTime: task.createdDate, activity: activityDescription });
+      return SFDC_TaskMapper.getMyUSSTasksFromSFDCTasks(task);
+    }) || [];
+
+    const feeds = caseDetailsResponse.feeds?.map(feed => {
+      activities.push({ dateTime: feed.createdDate, activity: feed.body || '' });
+      return SFDC_FeedsMapper.getMyUSSFeedsFromSFDCFeeds(feed);
+    }) || [];
+
+    const histories = caseDetailsResponse.histories?.map(history => {
+      if (history.Field === 'USF_Closed_By__c') {
+        history.Field = 'Closed by - ' + history.NewValue;
       }
-    }
-    if (caseDetailsResponse.tasks) {
-      tasks = caseDetailsResponse.tasks.map((task) => {
-        return SFDC_TaskMapper.getMyUSSTasksFromSFDCTasks(task);
-      });
-      for (const task of tasks) {
-        let activity = '';
-        if (task.subject) {
-          activity = task.subject;
-          if (task.description) {
-            activity = activity + ' - ' + task.description;
-          }
-        }
-        activities.push({
-          dateTime: task.createdDate,
-          activity: activity,
-        });
-      }
-    }
-    if (caseDetailsResponse.feeds) {
-      feeds = caseDetailsResponse.feeds.map((feed) => {
-        return SFDC_FeedsMapper.getMyUSSFeedsFromSFDCFeeds(feed);
-      });
-      for (const feed of feeds) {
-        let activity = '';
-        if (feed.body) {
-          activity = feed.body;
-        }
-        activities.push({
-          dateTime: feed.createdDate,
-          activity: activity,
-        });
-      }
-    }
-    if (caseDetailsResponse.histories) {
-      histories = caseDetailsResponse.histories.map((history) => {
-        if (history.Field == 'USF_Closed_By__c') {
-          history.Field = 'Closed by - ' + history.NewValue;
-        }
-        return SFDC_HistoryMapper.getMyUSSHistoryFromSFDCHistory(history);
-      });
-      for (const history of histories) {
-        let activity = '';
-        if (history.field) {
-          activity = history.field;
-          if (history.oldValue && history.newValue) {
-            activity = activity + ' - ' + history.oldValue + ' to ' + history.newValue;
-          }
-        }
-        activities.push({
-          dateTime: history.createdDate,
-          activity: activity,
-        });
-      }
-    }
-    let responseCaseDetails = {
+      const activityDescription = history.field + 
+        (history.oldValue && history.newValue ? ` - ${history.oldValue} to ${history.newValue}` : '');
+      activities.push({ dateTime: history.createdDate, activity: activityDescription });
+      return SFDC_HistoryMapper.getMyUSSHistoryFromSFDCHistory(history);
+    }) || [];
+
+    const responseCaseDetails = {
       caseDetails: SFDC_CaseMapper.getMyUSSCaseFromSFDCCase(caseDetailsResponse.caseDetails),
-      comments: comments.sort(
-        (a, b) => new Date(b.lastModifiedDate).getTime() - new Date(a.lastModifiedDate).getTime(),
-      ),
+      comments: comments.sort((a, b) => new Date(b.lastModifiedDate).getTime() - new Date(a.lastModifiedDate).getTime()),
       activities: activities.sort((a, b) => new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime()),
     };
+
     return {
       status: 1000,
       data: responseCaseDetails,
@@ -250,21 +175,19 @@ export class CaseService {
     auth0Id: string,
     type: string,
   ): Promise<ApiRespDTO<Object>> {
-    let orderShipAddress = new Contract();
-    orderShipAddress = await this.sfdcCaseService.getContractIdByName(createCaseDto.orderName);
-    const region = await this.googleMapService.getTimeZoneByAddress(orderShipAddress.Ship_To__c)
+    const orderShipAddress = await this.sfdcCaseService.getContractIdByName(createCaseDto.orderName);
+    const region = await this.googleMapService.getTimeZoneByAddress(orderShipAddress.Ship_To__c);
     Object.assign(createCaseDto, { caseRegion: region });
 
-    let createCaseResp;
-    if (type != 'MySiteServices') {
-      const recordTypeId = await this.sfdcCaseService.fetchRecordTypeId('Order Support');
-      const sfdcCaseObj = SFDC_CaseMapper.getSfdcCaseFromRequest(createCaseDto, recordTypeId, accountName);
-      createCaseResp = await this.sfdcCaseService.createCase(sfdcCaseObj, orderShipAddress.Id);
-    } else {
-      const recordTypeId = await this.sfdcCaseService.fetchRecordTypeId('MySiteServices');
-      const sfdcCaseObj = SFDC_CaseMapper.getSfdcMyUssServiceCaseFromRequest(createCaseDto, recordTypeId, accountName);
-      createCaseResp = await this.sfdcCaseService.createCase(sfdcCaseObj, orderShipAddress.Id);
-    }
+    const recordTypeId = await this.sfdcCaseService.fetchRecordTypeId(
+      type !== 'MySiteServices' ? 'Order Support' : 'MySiteServices'
+    );
+
+    const sfdcCaseObj = type !== 'MySiteServices'
+      ? SFDC_CaseMapper.getSfdcCaseFromRequest(createCaseDto, recordTypeId, accountName)
+      : SFDC_CaseMapper.getSfdcMyUssServiceCaseFromRequest(createCaseDto, recordTypeId, accountName);
+
+    const createCaseResp = await this.sfdcCaseService.createCase(sfdcCaseObj, orderShipAddress.Id);
 
     if (createCaseResp.success) {
       this.trackUserActionService.setPortalActions(
@@ -289,9 +212,10 @@ export class CaseService {
       };
     }
   }
+
   async addCaseComment(id: string, commentObj: AddCommentReqDto): Promise<ApiRespDTO<Object>> {
-    let sfdcComment: MyUSS_Case_Comment = SFDC_MyUSSCaseCommentMapper.getSFDCMyUSSCaseCommentFromRequest(commentObj);
-    let caseComment = await this.sfdcCaseService.addCaseComment(sfdcComment);
+    const sfdcComment: MyUSS_Case_Comment = SFDC_MyUSSCaseCommentMapper.getSFDCMyUSSCaseCommentFromRequest(commentObj);
+    const caseComment = await this.sfdcCaseService.addCaseComment(sfdcComment);
     if (caseComment.success) {
       return {
         status: 1000,
@@ -307,8 +231,9 @@ export class CaseService {
       };
     }
   }
+
   async uploadFile(file: Express.Multer.File, recordId: string): Promise<ApiRespDTO<Object>> {
-    const uploadResponse = this.sfdcCaseService.uploadFile(file, recordId);
+    const uploadResponse = await this.sfdcCaseService.uploadFile(file, recordId);
     if (uploadResponse) {
       return {
         status: 1000,
@@ -323,8 +248,8 @@ export class CaseService {
       };
     }
   }
+
   async getCaseDocumentBody(documentId: string): Promise<Blob> {
     return await this.sfdcCaseService.getDocumentBodyForCase(documentId);
   }
-
 }

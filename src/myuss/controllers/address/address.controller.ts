@@ -22,11 +22,11 @@ export class AddressController {
   @Get()
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   @ApiInternalServerErrorResponse({ description: 'Internal server error' })
-  async getAddresses(@Request() req,@Param('accountId') accountId: string): Promise<ApiRespDTO<any>> {
-    let addressType = req.query.type;
-    let addressesResp = new ApiRespDTO<any>();
+  async getAddresses(@Request() req, @Param('accountId') accountId: string): Promise<ApiRespDTO<any>> {
+    const addressType = req.query.type;
+    const addressesResp = new ApiRespDTO<any>();
     try {
-      addressesResp = await this.addressService.getAddressesForAccount(accountId,addressType);
+      addressesResp.data = await this.addressService.getAddressesForAccount(accountId, addressType);
     } catch (err) {
       this.logger.error(err);
       addressesResp.status = HttpStatus.INTERNAL_SERVER_ERROR;
@@ -35,13 +35,14 @@ export class AddressController {
     }
     return addressesResp;
   }
+
   @Get(':id/subsites')
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   @ApiInternalServerErrorResponse({ description: 'Internal server error' })
-  async getChildAddress(@Param('accountId') accountId: string,@Param('id') id: string): Promise<ApiRespDTO<any>> {
-    let addressesResp = new ApiRespDTO<any>();
+  async getChildAddress(@Param('accountId') accountId: string, @Param('id') id: string): Promise<ApiRespDTO<any>> {
+    const addressesResp = new ApiRespDTO<any>();
     try {
-      addressesResp = await this.addressService.getChildAddress(id,accountId);
+      addressesResp.data = await this.addressService.getChildAddress(id, accountId);
     } catch (err) {
       this.logger.error(err);
       addressesResp.status = HttpStatus.INTERNAL_SERVER_ERROR;
@@ -58,9 +59,9 @@ export class AddressController {
     @Param('accountId') accountId: string,
     @Body() createAddressDTO: CreateAddressReqDTO,
   ): Promise<ApiRespDTO<any>> {
-    let addressesResp = new ApiRespDTO<any>();
+    const addressesResp = new ApiRespDTO<any>();
     createAddressDTO.address.accountId = accountId;
-    addressesResp = await this.addressService.createAddress(createAddressDTO);
+    addressesResp.data = await this.addressService.createAddress(createAddressDTO);
     return addressesResp;
   }
 
@@ -72,9 +73,9 @@ export class AddressController {
     @Param('id') id: string,
     @Body() updateAddressDTO: CreateAddressReqDTO,
   ): Promise<ApiRespDTO<any>> {
-    let addressesResp = new ApiRespDTO<any>();
+    const addressesResp = new ApiRespDTO<any>();
     updateAddressDTO.address.accountId = accountId;
-    addressesResp = await this.addressService.updateAddress(id,updateAddressDTO);
+    addressesResp.data = await this.addressService.updateAddress(id, updateAddressDTO);
     return addressesResp;
   }
 }

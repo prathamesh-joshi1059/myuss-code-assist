@@ -10,7 +10,7 @@ import {
   Request,
   Headers,
   VERSION_NEUTRAL,
-   UseFilters
+  UseFilters,
 } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { RFQService } from '../../services/rfq/rfq.service';
@@ -21,19 +21,18 @@ import { RFQAuthGuard } from '../../../auth/rfq-auth/rfq-auth.guard';
 import { UnauthorizedError } from 'express-jwt';
 import { LeadsService } from '../../services/leads/leads.service';
 import { LoggerService } from '../../../core/logger/logger.service';
-import { RecaptchaService } from '../../../backend/google/recaptcha/recaptcha.service'
-import {Auth0MyUSSAPIService} from '../../../backend/auth0/services/auth0-myuss-api/auth0-myuss-api.service'
+import { RecaptchaService } from '../../../backend/google/recaptcha/recaptcha.service';
+import { Auth0MyUSSAPIService } from '../../../backend/auth0/services/auth0-myuss-api/auth0-myuss-api.service';
 import { LeadScoringService } from '../../services/lead-scoring/lead-scoring.service';
-import {UserService} from '../../../myuss/services/user/user.service'
+import { UserService } from '../../../myuss/services/user/user.service';
 import { ApiRespDTO } from '../../../common/dto/api-resp.dto';
 import { Auth0UserService } from '../../../backend/auth0/services/auth0-user/auth0-user.service';
 import { ThrottlerExceptionFilter } from '../../../core/utils/rate-limiting-exception/throttler-exception-filter';
 
-
 @UseFilters(ThrottlerExceptionFilter)
-@Controller({ 
+@Controller({
   path: 'rfq',
-  version: [VERSION_NEUTRAL, '1']
+  version: [VERSION_NEUTRAL, '1'],
 })
 export class RFQController {
   constructor(
@@ -43,63 +42,54 @@ export class RFQController {
     private leadScoringService: LeadScoringService,
     private logger: LoggerService,
     private auth0UserService: Auth0UserService,
-    private userService: UserService
+    private userService: UserService,
   ) {}
 
-  // TODO: remove this endpoint after testing
-  // @Post('win-probability')
-  // async getWinProbability(@Body() rfq: RequestForQuote): Promise<any> {
-  //   const probability = await this.leadScoringService.calculateProbabiltyAndPriority(rfq);
-  //   return probability;
-  // }
-
-  // Security on this endpoing is handled using reCaptcha
+  // Security on this endpoint is handled using reCaptcha
   // TODO: add rate limiting
   @Post()
-  async createRFQ(@Body() rfq: RequestForQuote): Promise<CreateWebRFQResponseDto | ErrorResponse> {
-    // check the reCaptcha
+  async createRFQ(
+    @Body() rfq: RequestForQuote,
+  ): Promise<CreateWebRFQResponseDto | ErrorResponse> {
+    // Check the reCaptcha
     const recaptchaResult = await this.recaptchaService.verifyRecaptcha(rfq.recaptchaToken, 'submit_rfq');
-      if (!recaptchaResult.success) {
+    if (!recaptchaResult.success) {
       this.logger.error('reCaptchaFailed', recaptchaResult);
-        return { error: 'reCaptchaFailed', message: recaptchaResult.failureReason };
+      return { error: 'reCaptchaFailed', message: recaptchaResult.failureReason };
     }
-    // add the UUID if it doesn't exist
+    // Add the UUID if it doesn't exist
     rfq.id = rfq.id || uuidv4();
-    // store the RFQ in Firestore async
-    this.rfqService.storeRawRFQData(rfq)
-    .then(() => {
+    // Store the RFQ in Firestore async
+    this.rfqService.storeRawRFQData(rfq).then(() => {
       this.logger.info('RFQ stored in Firestore');
     }).catch((err) => {
       this.logger.error(err);
     });
-    // filter out irrelevant products
+    // Filter out irrelevant products
     rfq = this.rfqService.filterIrrelevantProducts(rfq);
-    // get the eligibility
+    // Get the eligibility
     this.logger.info('Getting eligibility started', new Date());
     const eligibility = await this.rfqService.getEligibilityWrapper(rfq);
     this.logger.info('Getting eligibility finished', new Date());
-    // score the RFQ and create the Lead
+    // Score the RFQ and create the Lead
     this.logger.info('Creating lead started', new Date());
     rfq.leadId = await this.leadService.createOrUpdateLeadForRfq(rfq);
     this.logger.info('Creating lead finished', new Date());
-    // create the RFQ in Salesforce and SFMC if appropriate
-    const response = await this.rfqService.createOrUpdateWebRFQ(
-      rfq,
-      eligibility,
-      'create',
-    );
+    // Create the RFQ in Salesforce and SFMC if appropriate
+    const response = await this.rfqService.createOrUpdateWebRFQ(rfq, eligibility, 'create');
     return response;
   }
 
   @Get(':id')
   @UseGuards(RFQAuthGuard)
-  async getRFQ(@Param('id') id: string, @Request() req: Request): Promise<ApiRespDTO<RequestForQuote> | UnauthorizedError> {
-    // confirm that the RFQ ID in the JWT matches the RFQ ID in the request body
+  async getRFQ(
+    @Param('id') id: string,
+    @Request() req: Request,
+  ): Promise<ApiRespDTO<RequestForQuote> | UnauthorizedError> {
+    // Confirm that the RFQ ID in the JWT matches the RFQ ID in the request body
     const rfqIdFromJWT = req['rfq_id'];
     if (rfqIdFromJWT !== id) {
-      Logger.error(
-        `RFQ ID in JWT (${rfqIdFromJWT}) does not match RFQ ID in request body (${id})`,
-      );
+      Logger.error(`RFQ ID in JWT (${rfqIdFromJWT}) does not match RFQ ID in request body (${id})`);
       return new UnauthorizedError('invalid_token', {
         message: 'RFQ ID in JWT does not match RFQ ID in request body',
       });
@@ -116,85 +106,75 @@ export class RFQController {
   ): Promise<CreateWebRFQResponseDto | ErrorResponse | UnauthorizedError> {
     this.logger.info('RFQController.updateRFQ()', id, rfq);
     rfq.id = id;
-    // confirm that the RFQ ID in the JWT matches the RFQ ID in the request body
+    // Confirm that the RFQ ID in the JWT matches the RFQ ID in the request body
     const rfqIdFromJWT = req['rfq_id'];
     if (rfqIdFromJWT !== id) {
-      Logger.error(
-        `RFQ ID in JWT (${rfqIdFromJWT}) does not match RFQ ID in request body (${id})`,
-      );
+      Logger.error(`RFQ ID in JWT (${rfqIdFromJWT}) does not match RFQ ID in request body (${id})`);
       return new UnauthorizedError('invalid_token', {
         message: 'RFQ ID in JWT does not match RFQ ID in request body',
       });
     }
     try {
-      // store the RFQ in Firestore
+      // Store the RFQ in Firestore
       this.rfqService.storeRawRFQData(rfq).then(() => {
         this.logger.info('RFQ stored in Firestore');
       });
-      // filter out irrelevant products
+      // Filter out irrelevant products
       rfq = this.rfqService.filterIrrelevantProducts(rfq);
-      // score the RFQ and create the Lead
+      // Score the RFQ and create the Lead
       rfq.leadId = await this.leadService.createOrUpdateLeadForRfq(rfq);
-      // get the eligibility
+      // Get the eligibility
       const eligibility = await this.rfqService.getEligibilityWrapper(rfq);
-      // create the RFQ in Salesforce and SFMC if appropriate
-      const response = await this.rfqService.createOrUpdateWebRFQ(
-        rfq,
-        eligibility,
-        'update',
-      );
-      // delete any irrelevant CampaignMembers async
+      // Create the RFQ in Salesforce and SFMC if appropriate
+      const response = await this.rfqService.createOrUpdateWebRFQ(rfq, eligibility, 'update');
+      // Delete any irrelevant CampaignMembers async
       const priorityGroup = rfq.priorityGroup;
-      this.leadScoringService.deleteIrrelevantCampaignMembers(rfq.leadId, priorityGroup)
-        .then((resp) => {
-          this.logger.info('Irrelevant CampaignMembers deleted', resp);
-        });
-          // if prod then remove the probability and priority
+      this.leadScoringService.deleteIrrelevantCampaignMembers(rfq.leadId, priorityGroup).then((resp) => {
+        this.logger.info('Irrelevant CampaignMembers deleted', resp);
+      });
+      // If prod then remove the probability and priority
       if (process.env.ENVIRONMENT === 'production' && response['rfq'] !== undefined) {
         delete response['rfq']?.probabilityModel;
         delete response['rfq']?.winProbability;
         delete response['rfq']?.priorityGroup;
       }
       return response;
-    } catch(err) {
+    } catch (err) {
       Logger.error(err);
       const errorResponse = new ErrorResponse();
       errorResponse.error = 'error';
       errorResponse.message = err.message;
-      return errorResponse
+      return errorResponse;
     }
-
   }
 
   @Post('create_user')
   @UseGuards(RFQAuthGuard)
-  async createUser(@Headers() headers,@Body() user:any): Promise<object> {
+  async createUser(@Headers() headers: any, @Body() user: any): Promise<object> {
     try {
       const resp = await this.auth0UserService.createUser(user);
-      this.logger.info("user: "+user.auth0Id);
-      if(!user.auth0Id){
-        const signupResp = {
+      this.logger.info('user: ' + user.auth0Id);
+      if (!user.auth0Id) {
+        return {
           status: 409,
           message: 'User already exists.',
-          data: { error: "error in auth0" },
+          data: { error: 'error in auth0' },
         };
-        return signupResp;
-      }else{
+      } else {
         const signupResp = await this.userService.createUser(user);
         const changePasswordResp = await this.auth0UserService.changePasswordInteractive(user.email);
         return {
           ...signupResp,
-          changePasswordMessage: changePasswordResp
+          changePasswordMessage: changePasswordResp,
         };
-      }     
+      }
     } catch (err) {
       this.logger.error('error in createUser controller', err);
-      const signupResp = {
+      return {
         status: 200,
         message: 'Fail',
         data: { error: err },
       };
-      return signupResp;
     }
   }
 }

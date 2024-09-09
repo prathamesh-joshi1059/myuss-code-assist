@@ -13,12 +13,13 @@ import { OrderInfoController } from './controllers/order-info/order-info.control
 import { OrderInfoService } from './services/order-info/order-info.service';
 import { PaymentInfoService } from './services/payment-info/payment-info.service';
 import { PaymentInfoController } from './controllers/payment-info/payment-info.controller';
-import {Auth0MyUSSAPIService} from '../backend/auth0/services/auth0-myuss-api/auth0-myuss-api.service'
-import {UserService} from '../myuss/services/user/user.service'
+import { Auth0MyUSSAPIService } from '../backend/auth0/services/auth0-myuss-api/auth0-myuss-api.service';
+import { UserService } from '../myuss/services/user/user.service';
 import { MyUSSModule } from '../myuss/myuss.module';
 import { BranchesController } from './controllers/branches/branches.controller';
 import { BranchService } from './services/branch/branch.service';
 import { Auth0Module } from '../backend/auth0/auth0.module';
+
 @Module({
   imports: [
     CoreModule,
@@ -28,10 +29,10 @@ import { Auth0Module } from '../backend/auth0/auth0.module';
     GoogleModule,
     AuthModule,
     Auth0Module,
-    MyUSSModule
+    MyUSSModule,
   ],
   providers: [
-    RFQService, 
+    RFQService,
     LeadsService,
     LeadScoringService,
     OrderInfoService,

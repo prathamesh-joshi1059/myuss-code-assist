@@ -32,172 +32,121 @@ export class AccountsService {
     private accountsServiceV2: AccountsServiceV2
   ) {}
 
-  updateBillingAddress(id: string, body: any) {
+  updateBillingAddress(id: string, body: any): void {
     throw new Error('Method not implemented.');
   }
 
   async getAccount(id: string): Promise<Account> {
     const sfdcAccount = await this.sfdcAccountService.getAccount(id);
-    if (sfdcAccount == undefined) {
+    if (!sfdcAccount) {
       throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
     }
-    const account = SFDC_AccountMapper.getMyUSSAccountFromSFDCAccount(sfdcAccount);
-    return account;
+    return SFDC_AccountMapper.getMyUSSAccountFromSFDCAccount(sfdcAccount);
   }
 
   async getContacts(accountId: string): Promise<ApiRespDTO<GetContactsRespDTO[]>> {
-    let contactsResp: Contact[] = await this.sfdcContactService.getContactsForAccount(accountId);
-    let getContactsResult = new ApiRespDTO<GetContactsRespDTO[]>();
-    if (contactsResp?.length == 0) {
-      getContactsResult = {
-        success: true,
-        status: 1000,
-        message: 'Contacts not found',
-        data: [],
-      };
-      return getContactsResult;
-    }
-    if (contactsResp == undefined) {
-      getContactsResult = {
-        success: false,
-        status: 1006,
-        message: 'Something went wrong',
-        data: [],
-      };
-      return getContactsResult;
-    }
-    let contactList: GetContactsRespDTO[] = [];
-    contactsResp.map((contact: Contact) => {
-      try {
-        let contactObj: GetContactsRespDTO = {
-          recordId: contact.Id,
-          accountId: contact.AccountId,
-          contactId: contact.ContactId,
-          firstName: contact['Contact'].FirstName,
-          lastName: contact['Contact'].LastName,
-          email: contact['Contact'].Email,
-          phone: contact['Contact'].Phone,
-        };
-        contactList.push(contactObj);
-      } catch (err) {
-        this.logger.error(err);
-      }
-    });
-
-    getContactsResult = {
+    const contactsResp: Contact[] = await this.sfdcContactService.getContactsForAccount(accountId);
+    let getContactsResult: ApiRespDTO<GetContactsRespDTO[]> = {
       success: true,
       status: 1000,
-      message: 'Success',
-      data: contactList,
+      message: contactsResp.length === 0 ? 'Contacts not found' : 'Success',
+      data: []
     };
-    return getContactsResult;
+
+    if (contactsResp.length === 0) {
+      return getContactsResult;
+    }
+
+    const contactList: GetContactsRespDTO[] = contactsResp.map(contact => ({
+      recordId: contact.Id,
+      accountId: contact.AccountId,
+      contactId: contact.ContactId,
+      firstName: contact['Contact'].FirstName,
+      lastName: contact['Contact'].LastName,
+      email: contact['Contact'].Email,
+      phone: contact['Contact'].Phone,
+    }));
+
+    return { ...getContactsResult, data: contactList };
   }
 
   async checkDuplicateAddress(accountId: string, enteredAddress: string) {
     try {
-      // Assuming you have a method to check duplicate addresses
-      const existingAddresses: USF_Address__c[] = await this.sfdcAddressService.getAddressesByAddressValue(
-        accountId,
-        enteredAddress,
-      );
-
-      // If the array has any existing addresses, then it's a duplicate
-      const existingAddressesData = {
+      const existingAddresses: USF_Address__c[] = await this.sfdcAddressService.getAddressesByAddressValue(accountId, enteredAddress);
+      const addressInfo = existingAddresses.length > 0 ? existingAddresses[0] : {};
+      return {
         isDuplicate: existingAddresses.length > 0,
         addressInfo: {
-          addressId: existingAddresses.length > 0 ? existingAddresses[0].Id : '',
-          street: existingAddresses.length > 0 ? existingAddresses[0].USF_Street__c : '',
-          account: existingAddresses.length > 0 ? existingAddresses[0].USF_Account__c : '',
-          city: existingAddresses.length > 0 ? existingAddresses[0].USF_City__c : '',
-          state: existingAddresses.length > 0 ? existingAddresses[0].USF_State__c : '',
-          zipcode: existingAddresses.length > 0 ? existingAddresses[0].USF_Zip_Code__c : '',
-          latitude: existingAddresses.length > 0 ? existingAddresses[0].Address_Latitude_Longitude__Latitude__s : 0,
-          longitude: existingAddresses.length > 0 ? existingAddresses[0].Address_Latitude_Longitude__Longitude__s : 0,
-          serviceable: existingAddresses.length > 0 ? existingAddresses[0].USF_Ship_To_Address__c : false,
+          addressId: addressInfo.Id || '',
+          street: addressInfo.USF_Street__c || '',
+          account: addressInfo.USF_Account__c || '',
+          city: addressInfo.USF_City__c || '',
+          state: addressInfo.USF_State__c || '',
+          zipcode: addressInfo.USF_Zip_Code__c || '',
+          latitude: addressInfo.Address_Latitude_Longitude__Latitude__s || 0,
+          longitude: addressInfo.Address_Latitude_Longitude__Longitude__s || 0,
+          serviceable: addressInfo.USF_Ship_To_Address__c || false,
         },
       };
-      return existingAddressesData;
     } catch (error) {
-      // Handle errors accordingly
       throw new HttpException('Error checking duplicate address', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
-  //fetch drafts for Account - all/by projectId
-  async fetchDrafts(
-    accountIds: string[],
-    projectId: string,
-    status: string,
-  ): Promise<ApiRespDTO<GetAllDraftsDTO | []>> {
+  async fetchDrafts(accountIds: string[], projectId: string, status: string): Promise<ApiRespDTO<GetAllDraftsDTO | []>> {
     try {
-      const draftsResp = this.sfdcQuoteService.fetchDrafts(accountIds, projectId, status);
-      const quotesDocsFromFirestore = this.firestoreService.getCollectionDocsByFieldName(
-        'quotes',
-        'accountId',
-        accountIds[0],
-      );
-      const draftResp = await Promise.all([draftsResp, quotesDocsFromFirestore]);
-      if (!draftResp) {
+      const [draftsResp, quotesDocsFromFirestore] = await Promise.all([
+        this.sfdcQuoteService.fetchDrafts(accountIds, projectId, status),
+        this.firestoreService.getCollectionDocsByFieldName('quotes', 'accountId', accountIds[0]),
+      ]);
+
+      if (!draftsResp) {
         return { status: 1041, message: 'Error while fetching quotes', data: [] };
       }
-      if (draftResp[0].length == 0) {
+
+      if (draftsResp.length === 0) {
         return { status: 1000, message: 'Success', data: [] };
       }
-      let quoteDocument = [];
-      if (draftResp[1].length > 0) {
-        quoteDocument = draftResp[1].map((doc) => doc.data());
-      }
-      var firecount = 0;
-      let draftsArr: DraftModel[] = [];
-      draftResp[0]?.map((draftObj: SBQQ__Quote__c) => {
-        const getPaymentMethodIdFromFirestore = quoteDocument.filter((quote) => quote.quoteId == draftObj.Id);
-        let draft: DraftModel = {
-          projectDetails: draftObj.SBQQ__Opportunity2__r.USF_Project__r
-            ? SFDC_ProjectMapper.getMyUSSProjectFromSFDCProject(
-                draftObj.SBQQ__Opportunity2__r.USF_Project__r,
-                [],
-                accountIds[0],
-              )
+
+      const quoteDocuments = quotesDocsFromFirestore.map(doc => doc.data());
+      const draftsArr: DraftModel[] = draftsResp.map(draftObj => {
+        const paymentMethodDocument = quoteDocuments.find(quote => quote.quoteId === draftObj.Id);
+        const draft: DraftModel = {
+          projectDetails: draftObj.SBQQ__Opportunity2__r.USF_Project__r 
+            ? SFDC_ProjectMapper.getMyUSSProjectFromSFDCProject(draftObj.SBQQ__Opportunity2__r.USF_Project__r, [], accountIds[0]) 
             : null,
-          firestorePaymentMethodId: getPaymentMethodIdFromFirestore[0]
-            ? getPaymentMethodIdFromFirestore[0].paymentMethodId
-            : '',
-          isAutoPay: getPaymentMethodIdFromFirestore[0] ? getPaymentMethodIdFromFirestore[0].isAutoPay : true,
+          firestorePaymentMethodId: paymentMethodDocument?.paymentMethodId || '',
+          isAutoPay: paymentMethodDocument?.isAutoPay || true,
           id: draftObj.Id,
           lastModifiedDate: draftObj.LastModifiedDate,
           name: draftObj.Name,
-          shippingAddress: draftObj.Shipping_Address__r ? draftObj.Shipping_Address__r.Name : '',
-          zipcode: draftObj.Serviceable_Zip_Code__r ? draftObj.Serviceable_Zip_Code__r.Zip_Code__c : '',
+          shippingAddress: draftObj.Shipping_Address__r?.Name || '',
+          zipcode: draftObj.Serviceable_Zip_Code__r?.Zip_Code__c || '',
           billAddress: {
-            lat: draftObj.Bill_To_Address__r ? draftObj.Bill_To_Address__r.Address_Latitude_Longitude__Latitude__s : 0,
-            lng: draftObj.Bill_To_Address__r ? draftObj.Bill_To_Address__r.Address_Latitude_Longitude__Longitude__s : 0,
+            lat: draftObj.Bill_To_Address__r?.Address_Latitude_Longitude__Latitude__s || 0,
+            lng: draftObj.Bill_To_Address__r?.Address_Latitude_Longitude__Longitude__s || 0,
           },
           shipAddress: {
-            lat: draftObj.Shipping_Address__r
-              ? draftObj.Shipping_Address__r.Address_Latitude_Longitude__Latitude__s
-              : 0,
-            lng: draftObj.Shipping_Address__r
-              ? draftObj.Shipping_Address__r.Address_Latitude_Longitude__Longitude__s
-              : 0,
+            lat: draftObj.Shipping_Address__r?.Address_Latitude_Longitude__Latitude__s || 0,
+            lng: draftObj.Shipping_Address__r?.Address_Latitude_Longitude__Longitude__s || 0,
           },
           currentStatus: 0,
           status: draftObj.SBQQ__Status__c,
-          siteComplete: draftObj.Site_Complete__c ? draftObj.Site_Complete__c : false,
-          billingComplete: draftObj.Billing_Complete__c ? draftObj.Billing_Complete__c : false,
-          paymentMethodId: draftObj.Payment_Method_Id__c ? draftObj.Payment_Method_Id__c : null,
+          siteComplete: draftObj.Site_Complete__c || false,
+          billingComplete: draftObj.Billing_Complete__c || false,
+          paymentMethodId: draftObj.Payment_Method_Id__c || null,
           isCheckPaymentMethod: draftObj.isCheckPaymentMethod__c,
-          paymentMode: draftObj.Payment_Mode__c ? draftObj.Payment_Mode__c : null,
-          source: draftObj.CreatedBy.Name == 'MyUSS System User' ? 'MyUSS' : 'Salesforce',
+          paymentMode: draftObj.Payment_Mode__c || null,
+          source: draftObj.CreatedBy.Name === 'MyUSS System User' ? 'MyUSS' : 'Salesforce',
           createdDate: draftObj.CreatedDate,
           startDate: draftObj.SBQQ__StartDate__c,
           endDate: draftObj.SBQQ__EndDate__c,
           expiryDate: draftObj.SBQQ__ExpirationDate__c,
-          quoteName: draftObj.Quote_Name__c
+          quoteName: draftObj.Quote_Name__c,
         };
-        //For quotes created from saleforce and paymentMethodId is present in saleforce but not in firestore
-        if (draft.source == 'Salesforce' && draft.paymentMethodId && !draft.firestorePaymentMethodId) {
+
+        if (draft.source === 'Salesforce' && draft.paymentMethodId && !draft.firestorePaymentMethodId) {
           draft.firestorePaymentMethodId = draft.paymentMethodId;
-          //save paymentMethodId in firestore
           this.firestoreService.upsertDocument('quotes', draft.id, {
             paymentMethodId: draft.paymentMethodId,
             isAutoPay: draft.isAutoPay,
@@ -205,73 +154,45 @@ export class AccountsService {
             accountId: accountIds[0],
           });
         }
-        draftsArr.push(draft);
+
+        return draft;
       });
 
-      //filter drafts based on status
-      let filterdDrafts = draftsArr.reduce(function (r, a) {
-        r[a.status] = r[a.status] || [];
-        r[a.status].push(a);
-        return r;
-      }, Object.create(null));
+      const filteredDrafts = draftsArr.reduce((acc, draft) => {
+        acc[draft.status] = acc[draft.status] || [];
+        acc[draft.status].push(draft);
+        return acc;
+      }, {} as Record<string, DraftModel[]>);
 
-      let draftRespObj = {
-        unitServicesStep1: filterdDrafts.Draft
-          ? filterdDrafts.Draft.map((draftObj: DraftModel) => ({
-              ...draftObj,
-              currentStatus: 1,
-            }))
-          : [],
-        viewQuoteStep2: filterdDrafts.Presented
-          ? filterdDrafts.Presented.map((draftObj: DraftModel) => ({
-              ...draftObj,
-              currentStatus: 2,
-            }))
-          : [],
-        siteDetailsStep3: filterdDrafts.Approved
-          ? filterdDrafts.Approved.filter(
-              (draft: DraftModel) => draft.siteComplete == false && draft.billingComplete == false,
-            ).map((draftObj: DraftModel) => ({ ...draftObj, currentStatus: 3 }))
-          : [],
-        // when quote is created from MyUSS, default value of paymentMode is creditDebit
-        // and default value of createdby name is MyUSS System User.
-        // When created from saleforce default value of paymentMode is null
-        billingPaymentDetailsStep4: filterdDrafts.Approved
-          ? filterdDrafts.Approved.filter(
-              (draft: DraftModel) =>
-                (((draft.paymentMethodId == null && draft.isAutoPay == true) ||
-                  (draft.paymentMethodId != null && draft.isAutoPay == false)) &&
-                  draft.siteComplete == true &&
-                  draft.firestorePaymentMethodId == '') ||
-                (draft.isAutoPay == true && draft.paymentMethodId != null && draft.firestorePaymentMethodId == ''),
-            ).map((draftObj: DraftModel) => ({ ...draftObj, currentStatus: 4 }))
-          : [],
-        orderConfirmStep5: filterdDrafts.Approved
-          ? filterdDrafts.Approved.filter(
-              (draft: DraftModel) =>
-                ((draft.firestorePaymentMethodId == '' && draft.isAutoPay == false) ||
-                  (draft.firestorePaymentMethodId != '' && draft.isAutoPay == true)) &&
-                draft.siteComplete == true &&
-                draft.billingComplete == true,
-            ).map((draft: DraftModel) => ({ ...draft, currentStatus: 5 }))
-          : [],
+      const draftRespObj = {
+        unitServicesStep1: filteredDrafts.Draft?.map(draft => ({ ...draft, currentStatus: 1 })) || [],
+        viewQuoteStep2: filteredDrafts.Presented?.map(draft => ({ ...draft, currentStatus: 2 })) || [],
+        siteDetailsStep3: filteredDrafts.Approved?.filter(draft => !draft.siteComplete && !draft.billingComplete).map(draft => ({ ...draft, currentStatus: 3 })) || [],
+        billingPaymentDetailsStep4: filteredDrafts.Approved?.filter(draft => 
+          ((draft.paymentMethodId == null && draft.isAutoPay) ||
+          (draft.paymentMethodId != null && !draft.isAutoPay)) &&
+          draft.siteComplete && 
+          draft.firestorePaymentMethodId === '') || 
+          (draft.isAutoPay && draft.paymentMethodId != null && draft.firestorePaymentMethodId === '')
+        ).map(draft => ({ ...draft, currentStatus: 4 })) || [],
+        orderConfirmStep5: filteredDrafts.Approved?.filter(draft => 
+          ((draft.firestorePaymentMethodId === '' && !draft.isAutoPay) ||
+          (draft.firestorePaymentMethodId !== '' && draft.isAutoPay)) &&
+          draft.siteComplete && 
+          draft.billingComplete
+        ).map(draft => ({ ...draft, currentStatus: 5 })) || [],
         drafts: [],
       };
-      draftRespObj.drafts = draftRespObj.unitServicesStep1.concat(
-        draftRespObj.viewQuoteStep2,
-        draftRespObj.siteDetailsStep3,
-        draftRespObj.billingPaymentDetailsStep4,
-        draftRespObj.orderConfirmStep5,
-      );
-      draftRespObj.drafts.sort(function (a, b) {
-        return new Date(b.lastModifiedDate).getTime() - new Date(a.lastModifiedDate).getTime();
-      });
-      const draftResponse = {
-        status: 1000,
-        message: 'Success',
-        data: draftRespObj,
-      };
-      return draftResponse;
+
+      draftRespObj.drafts = [
+        ...draftRespObj.unitServicesStep1,
+        ...draftRespObj.viewQuoteStep2,
+        ...draftRespObj.siteDetailsStep3,
+        ...draftRespObj.billingPaymentDetailsStep4,
+        ...draftRespObj.orderConfirmStep5,
+      ].sort((a, b) => new Date(b.lastModifiedDate).getTime() - new Date(a.lastModifiedDate).getTime());
+
+      return { status: 1000, message: 'Success', data: draftRespObj };
     } catch (err) {
       this.logger.error(err);
       return { status: 1041, message: 'Error while fetching quotes', data: [] };
@@ -279,117 +200,96 @@ export class AccountsService {
   }
 
   async fetchArchivedDrafts(accountIds: string[], projectId: string): Promise<object> {
-    const draftsResp: Partial<SBQQ__Quote__c>[] = await this.sfdcQuoteService.fetchArchivedDrafts(
-      accountIds,
-      projectId,
-    );
+    const draftsResp: Partial<SBQQ__Quote__c>[] = await this.sfdcQuoteService.fetchArchivedDrafts(accountIds, projectId);
     this.logger.info(`draftsRespInArchived: ${JSON.stringify(draftsResp)}`);
     if (!draftsResp) {
       return { status: 1014, message: 'Error in fetching archived drafts' };
     }
-    if (draftsResp.length == 0) {
+    if (draftsResp.length === 0) {
       return { status: 1000, message: 'Success', data: [] };
     }
 
-    let draftsArr: DraftModel[] = [];
-    for (let draftObj of draftsResp) {
-      const getPaymentMethodIdFromFirestore = await this.firestoreService.getDocument('quotes', draftObj.Id);
-
-      let draft: DraftModel = {
+    const draftsArr: DraftModel[] = await Promise.all(draftsResp.map(async draftObj => {
+      const paymentMethodIdFromFirestore = await this.firestoreService.getDocument('quotes', draftObj.Id);
+      return {
         projectDetails: draftObj.SBQQ__Opportunity2__r.USF_Project__r
-          ? SFDC_ProjectMapper.getMyUSSProjectFromSFDCProject(
-              draftObj.SBQQ__Opportunity2__r.USF_Project__r,
-              [],
-              accountIds[0],
-            )
+          ? SFDC_ProjectMapper.getMyUSSProjectFromSFDCProject(draftObj.SBQQ__Opportunity2__r.USF_Project__r, [], accountIds[0])
           : null,
-        firestorePaymentMethodId: getPaymentMethodIdFromFirestore
-          ? getPaymentMethodIdFromFirestore.paymentMethodId
-          : '',
-        isAutoPay: getPaymentMethodIdFromFirestore ? getPaymentMethodIdFromFirestore.isAutoPay : true,
+        firestorePaymentMethodId: paymentMethodIdFromFirestore?.paymentMethodId || '',
+        isAutoPay: paymentMethodIdFromFirestore?.isAutoPay || true,
         id: draftObj.Id,
         lastModifiedDate: draftObj.LastModifiedDate,
         name: draftObj.Name,
-        shippingAddress: draftObj.Shipping_Address__r ? draftObj.Shipping_Address__r.Name : '',
-        zipcode: draftObj.Serviceable_Zip_Code__r ? draftObj.Serviceable_Zip_Code__r.Zip_Code__c : '',
+        shippingAddress: draftObj.Shipping_Address__r?.Name || '',
+        zipcode: draftObj.Serviceable_Zip_Code__r?.Zip_Code__c || '',
         billAddress: {
-          lat: draftObj.Bill_To_Address__r ? draftObj.Bill_To_Address__r.Address_Latitude_Longitude__Latitude__s : 0,
-          lng: draftObj.Bill_To_Address__r ? draftObj.Bill_To_Address__r.Address_Latitude_Longitude__Longitude__s : 0,
+          lat: draftObj.Bill_To_Address__r?.Address_Latitude_Longitude__Latitude__s || 0,
+          lng: draftObj.Bill_To_Address__r?.Address_Latitude_Longitude__Longitude__s || 0,
         },
         shipAddress: {
-          lat: draftObj.Shipping_Address__r ? draftObj.Shipping_Address__r.Address_Latitude_Longitude__Latitude__s : 0,
-          lng: draftObj.Shipping_Address__r ? draftObj.Shipping_Address__r.Address_Latitude_Longitude__Longitude__s : 0,
+          lat: draftObj.Shipping_Address__r?.Address_Latitude_Longitude__Latitude__s || 0,
+          lng: draftObj.Shipping_Address__r?.Address_Latitude_Longitude__Longitude__s || 0,
         },
         currentStatus: 0,
         status: draftObj.SBQQ__Status__c,
-        siteComplete: draftObj.Site_Complete__c,
-        billingComplete: draftObj.Billing_Complete__c,
-        paymentMethodId: draftObj.Payment_Method_Id__c,
+        siteComplete: draftObj.Site_Complete__c || false,
+        billingComplete: draftObj.Billing_Complete__c || false,
+        paymentMethodId: draftObj.Payment_Method_Id__c || null,
         isCheckPaymentMethod: draftObj.isCheckPaymentMethod__c,
       };
-      draftsArr.push(draft);
-    }
-    const draftObj = {
+    }));
+    
+    return {
       status: 1000,
       message: 'Success',
       data: draftsArr,
     };
-    return draftObj;
   }
 
   async fetchSuspendedDrafts(accountIds: string[]): Promise<object> {
     const draftsResp = await this.sfdcQuoteService.fetchSuspendedDrafts(accountIds);
-    if (draftsResp == undefined) {
+    if (!draftsResp) {
       return { status: 500, message: 'Something went wrong' };
     }
-    if (draftsResp['records'].length == 0) {
+    if (draftsResp['records'].length === 0) {
       return { status: HttpStatus.NOT_FOUND, message: 'Drafts not found' };
     }
 
-    let draftsArr: DraftModel[] = [];
-    for (const draftObj of draftsResp['records']) {
-      const getPaymentMethodIdFromFirestore = await this.firestoreService.getDocument('quotes', draftObj.Id);
-
-      let draft: DraftModel = {
-        firestorePaymentMethodId: getPaymentMethodIdFromFirestore
-          ? getPaymentMethodIdFromFirestore.paymentMethodId
-          : '',
-        isAutoPay: getPaymentMethodIdFromFirestore ? getPaymentMethodIdFromFirestore.isAutoPay : true,
+    const draftsArr: DraftModel[] = await Promise.all(draftsResp['records'].map(async draftObj => {
+      const paymentMethodIdFromFirestore = await this.firestoreService.getDocument('quotes', draftObj.Id);
+      return {
+        firestorePaymentMethodId: paymentMethodIdFromFirestore?.paymentMethodId || '',
+        isAutoPay: paymentMethodIdFromFirestore?.isAutoPay || true,
         id: draftObj.Id,
         lastModifiedDate: draftObj.LastModifiedDate,
         name: draftObj.Name,
-        shippingAddress: draftObj.Shipping_Address__r ? draftObj.Shipping_Address__r.Name : '',
-        zipcode: draftObj.Serviceable_Zip_Code__r ? draftObj.Serviceable_Zip_Code__r.Zip_Code__c : '',
+        shippingAddress: draftObj.Shipping_Address__r?.Name || '',
+        zipcode: draftObj.Serviceable_Zip_Code__r?.Zip_Code__c || '',
         billAddress: {
-          lat: draftObj.Bill_To_Address__r ? draftObj.Bill_To_Address__r.Address_Latitude_Longitude__Latitude__s : 0,
-          lng: draftObj.Bill_To_Address__r ? draftObj.Bill_To_Address__r.Address_Latitude_Longitude__Longitude__s : 0,
+          lat: draftObj.Bill_To_Address__r?.Address_Latitude_Longitude__Latitude__s || 0,
+          lng: draftObj.Bill_To_Address__r?.Address_Latitude_Longitude__Longitude__s || 0,
         },
         shipAddress: {
-          lat: draftObj.Shipping_Address__r ? draftObj.Shipping_Address__r.Address_Latitude_Longitude__Latitude__s : 0,
-          lng: draftObj.Shipping_Address__r ? draftObj.Shipping_Address__r.Address_Latitude_Longitude__Longitude__s : 0,
+          lat: draftObj.Shipping_Address__r?.Address_Latitude_Longitude__Latitude__s || 0,
+          lng: draftObj.Shipping_Address__r?.Address_Latitude_Longitude__Longitude__s || 0,
         },
         currentStatus: 0,
         status: draftObj.SBQQ__Status__c,
-        siteComplete: draftObj.Site_Complete__c,
-        billingComplete: draftObj.Billing_Complete__c,
-        paymentMethodId: draftObj.Payment_Method_Id__c,
+        siteComplete: draftObj.Site_Complete__c || false,
+        billingComplete: draftObj.Billing_Complete__c || false,
+        paymentMethodId: draftObj.Payment_Method_Id__c || null,
         isCheckPaymentMethod: draftObj.isCheckPaymentMethod__c,
       };
-      draftsArr.push(draft);
-    }
-    const draftObj = {
+    }));
+
+    return {
       status: 200,
       message: 'Success',
       data: draftsArr,
     };
-    return draftObj;
   }
 
-  async trackUserActions(
-    trackActionsReqDTO: TrackActionsReqDTO,
-    accountId: string,
-    auth0Id: string,
-  ): Promise<ApiRespDTO<any[]>> {
+  async trackUserActions(trackActionsReqDTO: TrackActionsReqDTO, accountId: string, auth0Id: string): Promise<ApiRespDTO<any[]>> {
     await this.trackUserActionService.setPortalActions(
       accountId,
       auth0Id,
@@ -400,14 +300,16 @@ export class AccountsService {
     );
     return { success: true, status: 1000, message: 'Success', data: [] };
   }
-  //check quoteId is present in account or not
-  async checkQuoteIdInAccount(accountId, quoteId) {
+
+  async checkQuoteIdInAccount(accountId: string, quoteId: string): Promise<boolean> {
     return await this.sfdcQuoteService.checkQuoteIdInAccount(accountId, quoteId);
   }
-  async fetchAccountNumber(accountId) {
+
+  async fetchAccountNumber(accountId: string): Promise<string> {
     return await this.sfdcAccountService.getAccountNumberByUSSAccountId(accountId);
   }
-  async checkContractIdInAccount(accountId, contractId) {
+
+  async checkContractIdInAccount(accountId: string, contractId: string): Promise<boolean> {
     return await this.sfdcAccountService.checkContractIdInAccount(accountId, contractId);
   }
 
@@ -431,8 +333,6 @@ export class AccountsService {
   }
 
   async fetchProjectQuotes(accountId: string, projectId: string, status: string): Promise<ApiRespDTO<object>> {
-    // console.log("CALLING FETCH PROJECTS...")
-    return await this.accountsServiceV2.fetchDraftsV2([accountId],projectId,status)
+    return await this.accountsServiceV2.fetchDraftsV2([accountId], projectId, status);
   }
-
 }

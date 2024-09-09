@@ -13,18 +13,15 @@ import { PlytixProductModel } from '../models/plytix.model';
 
 @Injectable()
 export class PlytixService {
-  private pubSubClient: PubSub;
-  private subscriptionName: string;
-  private storage: Storage;
-  private readonly logger: Logger;
+  private pubSubClient: PubSub = new PubSub();
+  private readonly logger: Logger = new Logger(PlytixService.name);
   private readonly bucketName: string;
-  private whitelist: string[];
+  private readonly whitelist: string[];
   private limits: { [key: string]: { count: number; lastReset: Date } } = {};
+  private readonly storage: Storage = new Storage();
+  private subscriptionName: string;
 
   constructor(private firestoreService: FirestoreService, private configService: ConfigService) {
-    this.logger = new Logger(PlytixService.name);
-    this.pubSubClient = new PubSub();
-    this.storage = new Storage();
     this.bucketName = this.configService.get<string>('GCS_BUCKET');
     this.whitelist = [this.configService.get<string>('WHITELIST_FEED_URL')];
     this.subscriptionName = this.configService.get<string>('PUB_SUB_SUBSCRIPTION');
@@ -35,6 +32,7 @@ export class PlytixService {
     try {
       const { processed_products, feed_url, channel_processing_status } = plytixWebhookCallReqDto;
       const domain = new URL(feed_url).hostname;
+
       if (!this.isDomainWhitelisted(domain)) {
         this.logger.error(`Error in plytixWebhookCall function: Domain for feed_url is not whitelisted: ${domain}`);
         return;
@@ -49,12 +47,12 @@ export class PlytixService {
         );
         return;
       }
-      const response = await axios.get(feed_url);
-      const csvData = response.data;
+
+      const { data: csvData } = await axios.get(feed_url);
       const timestamp = new Date().toISOString();
       const filename = `plytix-feed-${timestamp}.csv`;
-      const validationPassed = await this.validateFeedData(csvData);
-      if (validationPassed) {
+
+      if (await this.validateFeedData(csvData)) {
         const file = this.storage.bucket(this.bucketName).file(filename);
         await file.save(csvData, {
           contentType: 'text/csv',
@@ -64,9 +62,7 @@ export class PlytixService {
       }
     } catch (error) {
       const functionName = this.extractFunctionNameFromError(error);
-      this.logger.error(
-        `Error in plytixWebhookCall function: Error = ${error.message} : detail error stack = ${functionName}`,
-      );
+      this.logger.error(`Error in plytixWebhookCall function: Error = ${error.message} : detail error stack = ${functionName}`);
       throw error;
     }
   }
@@ -78,7 +74,7 @@ export class PlytixService {
   private isRateLimited(feed_url: string): boolean {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const limitKey = feed_url + today.toISOString();
+    const limitKey = `${feed_url}${today.toISOString()}`;
 
     if (!this.limits[limitKey]) {
       this.limits[limitKey] = { count: 0, lastReset: today };
@@ -93,9 +89,7 @@ export class PlytixService {
   async validateFeedData(csvData: string): Promise<boolean> {
     try {
       const jsonData = await csvtojson().fromString(csvData);
-      if (!jsonData.length) {
-        throw new Error('No data found in the CSV file.');
-      }
+      if (!jsonData.length) throw new Error('No data found in the CSV file.');
       if (jsonData.length === 1 && Object.keys(jsonData[0]).every((key) => key.trim() === '')) {
         throw new Error('No data found in the CSV file, only headers.');
       }
@@ -107,9 +101,7 @@ export class PlytixService {
         const dto = new ValidateFeedDataDto();
         Object.assign(dto, item);
         const errors: ValidationError[] = await validate(dto);
-        if (errors.length) {
-          throw new Error(`Schema validation failed: ${errors.length} errors found.`);
-        }
+        if (errors.length) throw new Error(`Schema validation failed: ${errors.length} errors found.`);
       }
       return true;
     } catch (error) {
@@ -146,10 +138,12 @@ export class PlytixService {
       await this.validateFeedData(fileContents);
       const jsonData = await csvtojson().fromString(fileContents);
       const documents: { [id: string]: PlytixProductModel } = {};
+
       for (const record of jsonData) {
         const modifiedJson = await this.removeSpacesFromKeys(record);
         const mappedData = PlytixProductMapper.mapToPlytixProduct(modifiedJson);
         const plainMappedData = this.convertToPlainObject(mappedData) as PlytixProductModel;
+
         if ('sku' in plainMappedData) {
           documents[plainMappedData.sku] = plainMappedData;
         } else {
@@ -161,9 +155,7 @@ export class PlytixService {
       this.logger.log(`In processPubsubMessage function: Processed all products from ${fileName} file`);
     } catch (error) {
       const functionName = this.extractFunctionNameFromError(error);
-      this.logger.error(
-        `Error in processPubsubMessage function: Error in file ${fileName} from storage: Error = ${error.message} : detail error stack = ${functionName}`,
-      );
+      this.logger.error(`Error in processPubsubMessage function: Error in file ${fileName} from storage: Error = ${error.message} : detail error stack = ${functionName}`);
       throw error;
     }
   }

@@ -1,6 +1,26 @@
-import { Body, Controller, Get, Param, Post, Query, UseFilters, UseGuards, Request, UploadedFiles, UseInterceptors, ParseFilePipe, Res, StreamableFile  } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseFilters,
+  UseGuards,
+  Request,
+  UploadedFiles,
+  UseInterceptors,
+  ParseFilePipe,
+  Res,
+  StreamableFile,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiInternalServerErrorResponse, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiInternalServerErrorResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { ThrottlerExceptionFilter } from '../../../core/utils/rate-limiting-exception/throttler-exception-filter';
 import { ApiRespDTO } from '../../../common/dto/api-resp.dto';
 import { CaseService } from '../../../myuss/services/case/case.service';
@@ -26,6 +46,7 @@ export class CaseController {
     private cacheService: CacheService,
     private accountsService: AccountsService,
   ) {}
+
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   @ApiInternalServerErrorResponse({ description: 'Internal server error' })
   @Get('cases')
@@ -33,18 +54,19 @@ export class CaseController {
     @Request() req,
     @Param() params,
     @Query() fetchCaseReqObject: FetchCaseReqDto,
-  ): Promise<ApiRespDTO<FetchCaseRespDto | Object>> {
-    let type = '';
-    if(req.query.type == 'MySiteServices'){
-      type = 'MySiteServices';
-    }
-    return this.caseService.getAccountWiseCaseList(params.accountId,fetchCaseReqObject,type);
+  ): Promise<ApiRespDTO<FetchCaseRespDto | object>> {
+    const type = req.query.type === 'MySiteServices' ? 'MySiteServices' : '';
+    return this.caseService.getAccountWiseCaseList(
+      params.accountId,
+      fetchCaseReqObject,
+      type,
+    );
   }
 
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   @ApiInternalServerErrorResponse({ description: 'Internal server error' })
-  @Get(['cases/:id','contracts/:contractId/cases/:id'])
-  getCaseDetails(@Param() params): Promise<ApiRespDTO<CaseDetails | {}>> {
+  @Get(['cases/:id', 'contracts/:contractId/cases/:id'])
+  getCaseDetails(@Param() params): Promise<ApiRespDTO<CaseDetails | object>> {
     return this.caseService.getCaseDetails(params.id);
   }
 
@@ -54,52 +76,56 @@ export class CaseController {
   getContractWiseCaseList(
     @Param() params,
     @Query() fetchCaseDto: FetchCaseReqDto,
-  ): Promise<ApiRespDTO<FetchCaseRespDto | Object>> {
+  ): Promise<ApiRespDTO<FetchCaseRespDto | object>> {
     return this.caseService.getContractWiseCaseList(params.id, fetchCaseDto);
   }
-  
+
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   @ApiInternalServerErrorResponse({ description: 'Internal server error' })
   @Post('cases/create')
-  async createCase(@Request() req, @Body() createCaseDto: CreateCaseDto): Promise<ApiRespDTO<Object>> {
+  async createCase(
+    @Request() req,
+    @Body() createCaseDto: CreateCaseDto,
+  ): Promise<ApiRespDTO<object>> {
     let userObj = await this.cacheService.get<string>('user-' + req.user.sub);
     let accountName = '';
+
     if (!userObj) {
       // get account number from salesforce
-      let accountObj = await this.accountsService.getAccount(createCaseDto.accountId);
+      const accountObj = await this.accountsService.getAccount(createCaseDto.accountId);
       accountName = accountObj.name;
     } else {
       userObj = JSON.parse(userObj);
-      accountName = userObj['accounts'].filter((user) => user.accountId === createCaseDto.accountId)[0].accountName;
+      accountName = userObj.accounts.find((user) => user.accountId === createCaseDto.accountId)?.accountName || '';
     }
-    let type = ''
-    if(req.query.type == 'MySiteServices'){
-      type = 'MySiteServices';
-    }
-    return this.caseService.createCase(createCaseDto, accountName, req.user.sub,type);
+
+    const type = req.query.type === 'MySiteServices' ? 'MySiteServices' : '';
+    return this.caseService.createCase(createCaseDto, accountName, req.user.sub, type);
   }
+
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   @ApiInternalServerErrorResponse({ description: 'Internal server error' })
   @Post('cases/:id/comment')
-  addCaseComment(@Param() params, @Body() addCommentReqDto: AddCommentReqDto): Promise<ApiRespDTO<Object>> {
+  addCaseComment(
+    @Param() params,
+    @Body() addCommentReqDto: AddCommentReqDto,
+  ): Promise<ApiRespDTO<object>> {
     return this.caseService.addCaseComment(params.id, addCommentReqDto);
   }
 
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   @ApiInternalServerErrorResponse({ description: 'Internal server error' })
-  @Post(['cases/:caseId/upload','cases/:caseId/comments/:commentId/upload'])
+  @Post(['cases/:caseId/upload', 'cases/:caseId/comments/:commentId/upload'])
   @UseInterceptors(AnyFilesInterceptor())
   uploadFile(
-    @UploadedFiles(new ParseFilePipe({ validators: [new FileIsDefinedValidator()] })) file: Express.Multer.File,
+    @UploadedFiles(new ParseFilePipe({ validators: [new FileIsDefinedValidator()] }))
+    file: Express.Multer.File,
     @Param() params,
   ) {
-    let recordId = params.caseId;
-    if (params.commentId) {
-      recordId = params.commentId;
-    }
+    const recordId = params.commentId || params.caseId;
     return this.caseService.uploadFile(file, recordId);
   }
-  
+
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   @ApiInternalServerErrorResponse({ description: 'Internal server error' })
   @Get('documents/:documentId')
@@ -112,9 +138,7 @@ export class CaseController {
     const arrayBuffer = await documentBlob.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const file = new StreamableFile(buffer);
-    res.set({
-      'Content-Type': documentBlob.type,
-    });
+    res.set({ 'Content-Type': documentBlob.type });
     return file;
   }
 }

@@ -15,15 +15,6 @@ import {
 } from '../../../../myuss/controllers/contract/dto/contract-req.dto';
 import { API_VERSION } from '../../../../myuss/services/quote/constants';
 import { SBQQ__Quote__c } from '../../model/SBQQ__Quote__c';
-import { UserDetails } from '../../../../myuss/models';
-import {
-  CANCELED_ORDER,
-  CHANGE_ORDER_END_DATE,
-  CHANGE_QUANTITY,
-  EASY_PAY_SCREEN,
-  ORDER_DETAILS_SCREEN,
-  UPDATED_EASY_PAY,
-} from '../../../../core/utils/user-event-messages';
 import { TrackUserActionService } from '../../../../core/track-user-action/track-user-action-service';
 import { WorkOrder } from '../../model/WorkOrder';
 import { SFDC_ContractMapper } from '../../../../myuss/mappers/salesforce/contract.mapper';
@@ -39,11 +30,11 @@ export class SfdcContractService {
   ) {}
 
   async getContractDetails(id: string): Promise<Contract> {
-    const promises = [];
-    const contractDetilsResp = this.getContractDetailsByContractId(id);
-    promises.push(contractDetilsResp);
-    const documentIdResp = this.getDocumentDetails(id);
-    promises.push(documentIdResp);
+    const promises = [
+      this.getContractDetailsByContractId(id),
+      this.getDocumentDetails(id),
+    ];
+    
     const promiseResp = await Promise.all(promises);
     let contract = new Contract();
     // TODO: Add error handling
@@ -62,7 +53,7 @@ export class SfdcContractService {
     return documentIdResp.records[0];
   }
 
-  async getContractByOrderIdAndZIP(orderId: string, zipCode: string): Promise<Contract> {
+  async getContractByOrderIdAndZIP(orderId: string, zipCode: string): Promise<Contract | null> {
     const safeOrderId = this.sfdcBaseService.escapeSOQLString(orderId);
     const safeZipCode = this.sfdcBaseService.escapeSOQLString(zipCode);
     const soql = `SELECT Id, Status, Ship_To_Street__c, Ship_To_City__c, Ship_To_State__c, Ship_To_Zip_Code__c, StartDate,
@@ -75,15 +66,12 @@ export class SfdcContractService {
           FROM Work_Orders__r WHERE StartDate >= LAST_90_DAYS AND StartDate <= NEXT_90_DAYS) 
           FROM Contract WHERE Reference_Number__c = '${safeOrderId}' AND Ship_To_Zip_Code__c = '${safeZipCode}'`;
     const contracts = await this.sfdcBaseService.conn.query<Contract>(soql);
-    if (contracts && contracts.records && contracts.records.length > 0) {
-      return contracts.records[0] as Contract;
-    } else {
-      return null;
-    }
+    return contracts?.records?.[0] ?? null;
   }
+
   // fetch contract details by Id
-  getContractDetailsByContractId(id: string): Contract {
-    const contract = this.sfdcBaseService.conn
+  async getContractDetailsByContractId(id: string): Promise<Contract> {
+    const contract = await this.sfdcBaseService.conn
       .sobject('Contract')
       .select(
         `Id,
@@ -208,24 +196,21 @@ export class SfdcContractService {
        AVA_SFCPQ__TaxAmount__c
         `,
       )
-      //Commented as Pricing_Type__c not availabe at higher SF enviroment
-      //Pricing_Type__c
       .end()
       .where({ Id: id })
       .execute();
     return contract;
   }
+
   async fetchWorkOrders(contractId: string): Promise<WorkOrder[]> {
-    // Work Orders & Service Appointments
     const workOrders = await this.sfdcBaseService.conn
       .sobject('WorkOrder')
       .select(
-        `Id, WorkType.Name, Site_Address__c, Status,NF_Origin__c, StartDate, EndDate, Actual_Start__c, Actual_End__c, Duration, DurationInMinutes,
+        `Id, WorkType.Name, Site_Address__c, Status, NF_Origin__c, StartDate, EndDate, Actual_Start__c, Actual_End__c, Duration, DurationInMinutes,
           Product_Information__c, ShipTo_Information__c, Special_Instructions__c, Count_of_WOLI__c, Completed_WOLI__c,
           Pickup_Reason_Code__c, Cancel__c`,
       )
       .include('Service_Appointments__r')
-      // Mult-level subselect needs to be nested in the select list
       .select(
         `Id, Status, EarliestStartTime, DueDate, SchedStartTime, SchedEndTime, Canceled_Reason__c, ActualStartTime, ActualEndTime,   
           FSL__InternalSLRGeolocation__Latitude__s, FSL__InternalSLRGeolocation__Longitude__s,
@@ -238,14 +223,18 @@ export class SfdcContractService {
       .execute({ autoFetch: true, maxFetch: 100000 });
     return workOrders;
   }
+
   // fetch contracts - all/by project Id
   async fetchContracts(accountIds: string[], statusArr: string[], projectId: string): Promise<Object[]> {
-    //soql for order object
-    let soqlforOrderObject = `id, SBQQ__Quote__r.id,SBQQ__Quote__r.Shipping_Address__r.Address_Latitude_Longitude__Latitude__s , SBQQ__Quote__r.Shipping_Address__r.Address_Latitude_Longitude__Longitude__s, 
-    Payment_Method_ID__c, Status, Reference_Number__c, SBQQ__Quote__r.Recurring_Subtotal__c, AutoPay__c, Shipping_Address__r.Name,
-    USS_Order__c`;
     let contracts: Contract[];
     let orderObjectResult: Contract[];
+
+    const caseOrderRelation: Case_Order_Relationship__c[] = await this.sfdcBaseService.getQuery(
+      `select count(id) caseCount, Case__r.MyUSS_Case_Type__c, USS_Order__c from Case_Order_Relationship__c where Case__r.AccountId IN ('${accountIds.join(
+        "','",
+      )}') group by Case__r.MyUSS_Case_Type__c, USS_Order__c
+      order by USS_Order__c`,
+    );
 
     const soqlForContracts = `Id,AccountId,SBQQ__Quote__r.Id,SBQQ__Quote__r.Shipping_Address__r.Address_Latitude_Longitude__Latitude__s ,
         SBQQ__Quote__r.Shipping_Address__r.Address_Latitude_Longitude__Longitude__s,Payment_Method_Id__c, Status,Reference_Number__c, Ship_To__c,
@@ -253,17 +242,6 @@ export class SfdcContractService {
         SBQQ__Quote__r.Recurring_Subtotal__c , billingEffectiveDateCombined__c, StartDate, AutoPay__c, EndDate, SBQQ__Quote__r.SBQQ__Opportunity2__r.USF_Project__r.Id ,
         SBQQ__Quote__r.SBQQ__Opportunity2__r.USF_Project__r.Name, SBQQ__Quote__r.SBQQ__Opportunity2__r.USF_Project__r.Project_ID_SF__c,
         SBQQ__Quote__r.SBQQ__Opportunity2__r.USF_Project__r.USF_USS_Project_Status__c,ContractNumber`;
-
-    let caseOrderRelation: Case_Order_Relationship__c[] = [];
-
-    const soqlForTotalCountOfTypesOfCases = await this.sfdcBaseService.getQuery(
-      `select count(id) caseCount, Case__r.MyUSS_Case_Type__c , USS_Order__c from Case_Order_Relationship__c where Case__r.AccountId IN ('${accountIds.join(
-        "','",
-      )}') group by Case__r.MyUSS_Case_Type__c, USS_Order__c
-      order by USS_Order__c`,
-    );
-    const caseRelation = Object.assign(caseOrderRelation, soqlForTotalCountOfTypesOfCases['records']);
-    // console.log('caseRelation', JSON.stringify(caseRelation));
 
     if (!projectId) {
       contracts = await this.sfdcBaseService.conn
@@ -281,14 +259,15 @@ export class SfdcContractService {
 
       orderObjectResult = await this.sfdcBaseService.conn
         .sobject('Order')
-        .select(soqlforOrderObject)
+        .select(`id, SBQQ__Quote__r.id, SBQQ__Quote__r.Shipping_Address__r.Address_Latitude_Longitude__Latitude__s , SBQQ__Quote__r.Shipping_Address__r.Address_Latitude_Longitude__Longitude__s, 
+        Payment_Method_ID__c, Status, Reference_Number__c, SBQQ__Quote__r.Recurring_Subtotal__c, AutoPay__c, Shipping_Address__r.Name,
+        USS_Order__c`)
         .where({
           status: { $in: statusArr },
           AccountId: { $in: accountIds },
           CreatedDate: { $gte: jsforce.Date.LAST_N_DAYS(7) },
         })
         .execute({ autoFetch: true, maxFetch: 100000 });
-      // return contracts;
     } else {
       contracts = await this.sfdcBaseService.conn
         .sobject('Contract')
@@ -306,7 +285,9 @@ export class SfdcContractService {
 
       orderObjectResult = await this.sfdcBaseService.conn
         .sobject('Order')
-        .select(soqlforOrderObject)
+        .select(`id, SBQQ__Quote__r.id, SBQQ__Quote__r.Shipping_Address__r.Address_Latitude_Longitude__Latitude__s , SBQQ__Quote__r.Shipping_Address__r.Address_Latitude_Longitude__Longitude__s, 
+        Payment_Method_ID__c, Status, Reference_Number__c, SBQQ__Quote__r.Recurring_Subtotal__c, AutoPay__c, Shipping_Address__r.Name,
+        USS_Order__c`)
         .where({
           status: { $in: statusArr },
           AccountId: { $in: accountIds },
@@ -317,9 +298,8 @@ export class SfdcContractService {
     }
 
     const contractsResult: Contract[] = orderObjectResult.concat(contracts);
-
     contractsResult.forEach((contract: Contract) => {
-      const mapcaseTypesCount = caseRelation.filter(
+      const mapcaseTypesCount = caseOrderRelation.filter(
         (cr: Case_Order_Relationship__c) => cr.USS_Order__c === contract.Id,
       );
       contract.Case_Order_Relationship__c = mapcaseTypesCount;
@@ -327,20 +307,22 @@ export class SfdcContractService {
     return contractsResult;
   }
 
-  async getActiveOrderCount(accountIds: string[]) {
+  async getActiveOrderCount(accountIds: string[]): Promise<number> {
     const query = `SELECT count(Id) FROM Contract WHERE status IN ('Activated','Suspended','Draft') AND AccountId IN ('${accountIds.join(
       "','",
     )}')`;
     const activeOrderedResp = await this.sfdcBaseService.getQuery(query);
-    return activeOrderedResp.records[0].expr0;
+    return activeOrderedResp.records?.[0]?.expr0 ?? 0;
   }
+
   async fetchContractIds(accountIds: string[]): Promise<string[]> {
     const soql = `SELECT Id, AccountId FROM Contract where AccountId IN ('${accountIds.join("','")}')`;
     const quoteIdsResp = (await this.sfdcBaseService.getQuery(soql)).records.map((contract) => contract.Id);
     return quoteIdsResp;
   }
+
   async fetchNotification(userId: string) {
-    const query = `SELECT Id,Product_Information__c, WorkType.Name, Status, Contract__r.Reference_Number__c, StartDate, Schedule_Start__c, Site_Address__r.USF_Street__c, Site_Address__r.USF_City__c, Site_Address__r.USF_State__c, Site_Address__r.USF_Zip_Code__c, Site_Address__r.Address_Latitude_Longitude__c
+    const query = `SELECT Id, Product_Information__c, WorkType.Name, Status, Contract__r.Reference_Number__c, StartDate, Schedule_Start__c, Site_Address__r.USF_Street__c, Site_Address__r.USF_City__c, Site_Address__r.USF_State__c, Site_Address__r.USF_Zip_Code__c, Site_Address__r.Address_Latitude_Longitude__c
       FROM WorkOrder
       WHERE AccountId IN ('${userId}')
       AND (Status NOT IN ('Canceled', 'Completed') ) AND StartDate >= TODAY AND StartDate <= NEXT_N_DAYS:90`;
@@ -350,9 +332,6 @@ export class SfdcContractService {
 
   //Asset Locations soql
   getAssetLocationsSoql(contractId: string): string {
-    //Commented as Pricing_Type__c not availabe at higher SF enviroment
-    //  NF_Service_Subscription__r.Pricing_Type__c
-
     const soql = `select Id,Name,NF_Placed_Jobsite__r.NF_Parent_USF_Address__r.Site_Name__c,NF_Asset_Serial_Number__c, NF_Placed_Jobsite__r.NF_Site_Name_Address__c,NF_Subscription_Product__r.Id,NF_Subscription_Product__r.Name,NF_Subscription_Product__r.Description, NF_Service_Product__r.Number_of_Services__c,NF_Service_Subscription__r.Price_Override__c,NF_Service_Product__r.Id, NF_Service_Product__r.Name,NF_Service_Product__r.Description, NF_Quantity__c, NF_Start_Date__c, NF_End_Date__c, NF_Placed_Jobsite__r.NF_Placement__c,NF_Placed_Jobsite__r.Id,NF_Service_Subscription__r.SBQQ__QuoteLine__r.IS2PContractedPrice__c from NF_Asset_Location__c  where NF_USS_Order__r.id = '${contractId}' and NF_Status__c = 'Active'`;
     return soql;
   }
@@ -362,18 +341,11 @@ export class SfdcContractService {
     try {
       const soql = this.getAssetLocationsSoql(contractId);
       const resp = await this.sfdcBaseService.getQuery(soql);
-      const mappedResponse: AssetLocations[] = resp?.records?.map((assetLocation: NF_Asset_Location__c) => {
-        // convert date string to date object
-        assetLocation.NF_Start_Date__c = assetLocation.NF_Start_Date__c
-          ? new Date(assetLocation.NF_Start_Date__c)
-          : assetLocation.NF_Start_Date__c;
-        assetLocation.NF_End_Date__c = assetLocation.NF_End_Date__c
-          ? new Date(assetLocation.NF_End_Date__c)
-          : assetLocation.NF_End_Date__c;
+      return resp?.records?.map((assetLocation: NF_Asset_Location__c) => {
+        assetLocation.NF_Start_Date__c = assetLocation.NF_Start_Date__c ? new Date(assetLocation.NF_Start_Date__c) : assetLocation.NF_Start_Date__c;
+        assetLocation.NF_End_Date__c = assetLocation.NF_End_Date__c ? new Date(assetLocation.NF_End_Date__c) : assetLocation.NF_End_Date__c;
         return SFDC_AssetLocation.getMyUSSAssetLocationFromSFDCAssetLocation(assetLocation);
-      });
-
-      return mappedResponse;
+      }) || [];
     } catch (err) {
       this.logger.error(err);
       throw err;
@@ -385,11 +357,10 @@ export class SfdcContractService {
     auth0Id: string,
     accountId: string,
   ): Promise<boolean> {
-    let updateQuoteStatusResult = false;
     this.logger.info('cancelContract', cancelContractReqDto);
     if (cancelContractReqDto.id) {
       const ussOrders = await this.sfdcBaseService.getSObjectById('Contract', cancelContractReqDto.id);
-      if (ussOrders.Status == 'Draft') {
+      if (ussOrders.Status === 'Draft') {
         const flsOrders = await this.sfdcBaseService.getSObjectRecordsByField(
           'Order',
           'USS_Order__c',
@@ -406,18 +377,14 @@ export class SfdcContractService {
         );
 
         const endpoint = `/services/data/v${API_VERSION}/actions/custom/flow/MYUSS_Cancel_Order_For_Non_Delivered_Items`;
-        const cancelContractRequest = {
-          inputs: [{ recordId: quoteId }],
-        };
+        const cancelContractRequest = { inputs: [{ recordId: quoteId }] };
         const cancelContractResponse = await this.sfdcBaseService.makeCpqAPICall(
           'POST',
           endpoint,
           cancelContractRequest,
         );
         this.logger.info('cancelContractResponse', cancelContractResponse);
-        if (cancelContractResponse[0] != null) {
-          return cancelContractResponse[0].isSuccess;
-        }
+        return cancelContractResponse[0]?.isSuccess ?? false;
       } else {
         const endpoint = `/services/apexrest/changeDateForActivatedContractsAPI/changeEndDate`;
         const cancelContractRequest = {
@@ -443,15 +410,10 @@ export class SfdcContractService {
           cancelContractRequest,
         );
         this.logger.info('cancelContractResponse', cancelContractResponse);
-        if (cancelContractResponse[0] != null) {
-          return cancelContractResponse[0].isSuccess;
-        }
+        return cancelContractResponse[0]?.isSuccess ?? false;
       }
-      this.logger.info('cancelContractResult', updateQuoteStatusResult);
-      return updateQuoteStatusResult;
     }
-    this.logger.info('cancelContractResult', updateQuoteStatusResult);
-    return updateQuoteStatusResult;
+    return false;
   }
 
   async confirmEasyPay(
@@ -459,17 +421,17 @@ export class SfdcContractService {
     auth0Id: string,
     accountId: string,
   ): Promise<boolean> {
-    let quoteRecordsToUpdate = [];
-    let contractRecordsToUpdate = [];
-    let fslOrderRecordsToUpdate = [];
+    const quoteRecordsToUpdate: SBQQ__Quote__c[] = [];
+    const contractRecordsToUpdate: Contract[] = [];
+    const fslOrderRecordsToUpdate: Contract[] = [];
 
     const quoteFromContractIds = await this.sfdcBaseService.getSObjectByIds(
       'Contract',
       confirmEasyPayReqDto.contractIds,
     );
 
-    if (quoteFromContractIds.length != 0) {
-      quoteFromContractIds.map((quoteFromContractId: Contract) => {
+    if (quoteFromContractIds.length) {
+      quoteFromContractIds.forEach((quoteFromContractId: Contract) => {
         this.trackUserActionService.setPortalActions(
           accountId,
           auth0Id,
@@ -479,82 +441,43 @@ export class SfdcContractService {
           quoteFromContractId.Id,
         );
 
-        let quoteObject = new SBQQ__Quote__c();
-        quoteObject.Id = quoteFromContractId.SBQQ__Quote__c;
-        quoteObject.Payment_Method_Id__c = confirmEasyPayReqDto.paymentMethodId;
-        quoteObject.AutoPay__c = true;
-        quoteRecordsToUpdate.push(quoteObject);
+        quoteRecordsToUpdate.push({
+          Id: quoteFromContractId.SBQQ__Quote__c,
+          Payment_Method_Id__c: confirmEasyPayReqDto.paymentMethodId,
+          AutoPay__c: true,
+        });
 
-        const contractInstance = Object.create(Contract.prototype);
-        contractInstance.Id = quoteFromContractId.Id;
-        contractInstance.Payment_Method_ID__c = confirmEasyPayReqDto.paymentMethodId;
-        contractInstance.AutoPay__c = true;
-        contractRecordsToUpdate.push(contractInstance);
+        contractRecordsToUpdate.push({
+          Id: quoteFromContractId.Id,
+          Payment_Method_ID__c: confirmEasyPayReqDto.paymentMethodId,
+          AutoPay__c: true,
+        });
 
-        const fslOrderInstance = Object.create(Contract.prototype);
-        fslOrderInstance.Id = quoteFromContractId.SBQQ__Order__c;
-        fslOrderInstance.Payment_Method_ID__c = confirmEasyPayReqDto.paymentMethodId;
-        fslOrderInstance.AutoPay__c = true;
-        fslOrderRecordsToUpdate.push(fslOrderInstance);
+        fslOrderRecordsToUpdate.push({
+          Id: quoteFromContractId.SBQQ__Order__c,
+          Payment_Method_ID__c: confirmEasyPayReqDto.paymentMethodId,
+          AutoPay__c: true,
+        });
       });
 
-      const quoteUpdatePromise = this.sfdcBaseService
-        .updateSObjectByIds('SBQQ__Quote__c', quoteRecordsToUpdate)
-        .then((quoteUpdateResult) => {
-          const isFailed = quoteUpdateResult.every((quoteUpdateResponse) => quoteUpdateResponse.success == false);
-          if (isFailed) {
-            throw new Error('Quote update failed');
-          }
-          return true;
-        });
+      const promises = [
+        this.sfdcBaseService.updateSObjectByIds('SBQQ__Quote__c', quoteRecordsToUpdate),
+        this.sfdcBaseService.updateSObjectByIds('Contract', contractRecordsToUpdate),
+        this.sfdcBaseService.updateSObjectByIds('Order', fslOrderRecordsToUpdate),
+      ];
 
-      const contractUpdatePromise = this.sfdcBaseService
-        .updateSObjectByIds('Contract', contractRecordsToUpdate)
-        .then((contractUpdateResult) => {
-          const isFailed = contractUpdateResult.every(
-            (contractUpdateResponse) => contractUpdateResponse.success == false,
-          );
-          if (isFailed) {
-            throw new Error('Contract update failed');
-          }
-          return true;
-        });
-
-      const orderUpdatePromise = this.sfdcBaseService
-        .updateSObjectByIds('Order', fslOrderRecordsToUpdate)
-        .then((orderUpdateResult) => {
-          const isFailed = orderUpdateResult.every((orderUpdateResponse) => orderUpdateResponse.success == false);
-          if (isFailed) {
-            throw new Error('Order update failed');
-          }
-          return true;
-        });
-
-      return Promise.all([quoteUpdatePromise, contractUpdatePromise, orderUpdatePromise])
-        .then((values) => {
-          return true;
-        })
-        .catch((error) => {
-          return false;
-        });
-    } else {
-      return false;
-    }
+      return Promise.all(promises)
+        .then((results) => results.every(result => !result.every(response => response.success === false)))
+        .catch(() => false);
+    } 
+    return false;
   }
 
   async editQuantiy(editQuantityReqDto: EditQuantityReqDto, auth0Id: string, accountId: string): Promise<boolean> {
-    // this.logger.log("editQuantityReqDto",JSON.stringify(editQuantityReqDto));
     const endpoint = `/services/apexrest/changeQuantityApi/changeQty`;
-    let editQuantityArray = [];
-    editQuantityReqDto.quantityChange.map((editQuantityObj: ChangeQuantityReqDto) => {
-      let editQuantityObject = new ChangeQuantityOrderModel(editQuantityObj);
-      editQuantityArray.push(editQuantityObject);
-    });
+    const editQuantityArray = editQuantityReqDto.quantityChange.map((editQuantityObj: ChangeQuantityReqDto) => new ChangeQuantityOrderModel(editQuantityObj));
 
-    const editQuantityRequest = {
-      QtyChange: editQuantityArray,
-    };
-    // this.logger.log("Edit Quantity Request",JSON.stringify(editQuantityRequest));
+    const editQuantityRequest = { QtyChange: editQuantityArray };
 
     this.trackUserActionService.setPortalActions(
       accountId,
@@ -567,70 +490,61 @@ export class SfdcContractService {
 
     const editQuantityResponse = await this.sfdcBaseService.makeCpqAPICall('POST', endpoint, editQuantityRequest);
     this.logger.info('editQuantityResponse', editQuantityResponse);
-    if (editQuantityResponse[0] != null) {
-      return editQuantityResponse[0].isSuccess;
-    } else {
-      return false;
-    }
+    return editQuantityResponse[0]?.isSuccess ?? false;
   }
 
   getCompletedServiceForAssetSoql(assetId: string, accounId: string) {
-    const soql = `SELECT Id,WorkOrder.Id, WorkOrder.Actual_Start__c,WorkOrder.Actual_End__c, WorkOrder.Type__c, WorkOrder.Status, WorkOrder.Schedule_Start__c, WorkOrder.Scheduled_End__c,WorkOrder.WorkType.Name, WorkOrder.StartDate, WorkOrder.EndDate FROM WorkOrderLineItem WHERE AssetId = '${assetId}' AND WorkOrder.AccountId = '${accounId}' and ( (WorkOrder.Actual_End__c >= LAST_90_DAYS) OR (EndDate >= LAST_90_DAYS) OR (WorkOrder.Scheduled_End__c >= LAST_90_DAYS))`;
-    return soql;
+    return `SELECT Id,WorkOrder.Id, WorkOrder.Actual_Start__c,WorkOrder.Actual_End__c, WorkOrder.Type__c, WorkOrder.Status, WorkOrder.Schedule_Start__c, WorkOrder.Scheduled_End__c,WorkOrder.WorkType.Name, WorkOrder.StartDate, WorkOrder.EndDate 
+    FROM WorkOrderLineItem WHERE AssetId = '${assetId}' AND WorkOrder.AccountId = '${accounId}' and ( (WorkOrder.Actual_End__c >= LAST_90_DAYS) OR (EndDate >= LAST_90_DAYS) OR (WorkOrder.Scheduled_End__c >= LAST_90_DAYS))`;
   }
+
   async getCompletedServiceForAsset(assetId: string, accounId: string) {
     try {
       const soql = this.getCompletedServiceForAssetSoql(assetId, accounId);
       const resp = await this.sfdcBaseService.getQuery(soql);
-
-      const mappedResponse = resp?.records?.map((record) => {
+      return resp?.records?.map((record) => {
         return SFDC_ContractMapper.getWorkOrderFromSFDCWorkOrder(record.WorkOrder);
-      });
-
-      return mappedResponse;
+      }) || [];
     } catch (err) {
       this.logger.error(err);
       throw err;
     }
   }
+
   getUpcomingServiceForAssetSoql(subscriptionId: string, addressId: string, accounId: string) {
-    const soql = `SELECT Id,WorkOrderNumber, Contract__c, Contract__r.Global_Order_Number__c, Status, StartDate,EndDate,WorkType.name,Schedule_Start__c, Scheduled_End__c,  Actual_Start__c,Actual_End__c
-    FROM WorkOrder WHERE  Site_Address__c = '${addressId}' AND AccountId = '${accounId}'  and status='New'   and
-     
-    id in ( SELECT WorkOrderId FROM WorkOrderLineItem where Subscription__r.SBQQ__RootId__c = '${subscriptionId}')
+    return `SELECT Id,WorkOrderNumber, Contract__c, Contract__r.Global_Order_Number__c, Status, StartDate, EndDate,WorkType.name,Schedule_Start__c, Scheduled_End__c, Actual_Start__c,Actual_End__c
+    FROM WorkOrder WHERE  Site_Address__c = '${addressId}' AND AccountId = '${accounId}'  and status='New'   
+    and id in ( SELECT WorkOrderId FROM WorkOrderLineItem where Subscription__r.SBQQ__RootId__c = '${subscriptionId}')
     and ((WorkOrder.Actual_End__c >= TODAY
       AND WorkOrder.Actual_End__c <= NEXT_90_DAYS) OR (EndDate >= TODAY AND EndDate <= NEXT_90_DAYS) OR (WorkOrder.Scheduled_End__c >= TODAY AND WorkOrder.Scheduled_End__c <= NEXT_90_DAYS))
       ORDER BY StartDate ASC`;
-    return soql;
   }
+
   async getUpcomingServiceForAsset(subscriptionId: string, addressId: string, accounId: string) {
     try {
       const soql = this.getUpcomingServiceForAssetSoql(subscriptionId, addressId, accounId);
       const resp = await this.sfdcBaseService.getQuery(soql);
-      const mappedResponse = resp?.records?.map((workOrder: WorkOrder) => {
+      return resp?.records?.map((workOrder: WorkOrder) => {
         return SFDC_ContractMapper.getWorkOrderFromSFDCWorkOrder(workOrder);
-      });
-      return mappedResponse;
+      }) || [];
     } catch (err) {
       this.logger.error(err);
       throw err;
     }
   }
+
   getAdditionalServicesForAssetSoql(subscriptionId: string) {
-    const soql = `select id, SBQQ__Product__r.Name from SBQQ__Subscription__c where SBQQ__RootId__c = '${subscriptionId}'  and (Product_Type__c  = 'Ancillary Services' OR Product_Type__c = 'Ancillary Asset')`;
-    return soql;
+    return `select id, SBQQ__Product__r.Name from SBQQ__Subscription__c where SBQQ__RootId__c = '${subscriptionId}'  and (Product_Type__c  = 'Ancillary Services' OR Product_Type__c = 'Ancillary Asset')`;
   }
+
   async getAdditionalServicesForAsset(subscriptionId: string) {
     try {
       const soql = this.getAdditionalServicesForAssetSoql(subscriptionId);
       const resp = await this.sfdcBaseService.getQuery(soql);
-      const mappedResponse = resp?.records?.map((record: SBQQ__Subscription__c) => {
-        return {
-          id: record.Id,
-          ancillaryServiceName: record.SBQQ__Product__r.Name,
-        };
-      });
-      return mappedResponse;
+      return resp?.records?.map((record: SBQQ__Subscription__c) => ({
+        id: record.Id,
+        ancillaryServiceName: record.SBQQ__Product__r.Name,
+      })) || [];
     } catch (err) {
       this.logger.error(err);
       throw err;
@@ -638,44 +552,33 @@ export class SfdcContractService {
   }
 
   getSearchByUnitNumberSoql(unitNumber: string, accountId: string): string {
-    const soql = `SELECT Id, NF_Asset__c, NF_USS_Order__r.StartDate, NF_USS_Order__r.EndDate, NF_USS_Order__r.AccountId, NF_USS_Order__r.Global_Order_Number__c,
+    return `SELECT Id, NF_Asset__c, NF_USS_Order__r.StartDate, NF_USS_Order__r.EndDate, NF_USS_Order__r.AccountId, NF_USS_Order__r.Global_Order_Number__c,
     NF_USS_Order__r.Status, NF_USS_Order__r.Ship_To__c, NF_USS_Order__r.Id,NF_Placed_Jobsite__r.Name, NF_Placed_Jobsite__r.NF_Placement__c,
     NF_Placed_Jobsite__r.Id, NF_Asset_Serial_Number__c, NF_Bundle_Subscription_Original__r.SBQQ__Product__r.Name,NF_Subscription_Product__r.Description, NF_Service_Product__r.Name, NF_Bundle_Subscription_Original__r.Id,
      NF_Service_Product__r.Number_of_Services__c,NF_Service_Subscription__r.Price_Override__c
-    
-    FROM NF_Asset_Location__c WHERE NF_Asset_Serial_Number__c = '${unitNumber}' AND NF_USS_Order__r.Account.Id = '${accountId}' and NF_Status__c = 'Active'
-    `;
-    return soql;
+    FROM NF_Asset_Location__c WHERE NF_Asset_Serial_Number__c = '${unitNumber}' AND NF_USS_Order__r.Account.Id = '${accountId}' and NF_Status__c = 'Active'`;
   }
 
   async searchByUnitNumber(unitNumber: string, accountId: string) {
     try {
       const soql = this.getSearchByUnitNumberSoql(unitNumber, accountId);
       const resp = await this.sfdcBaseService.getQuery(soql);
-      if (resp?.records?.length > 0) {
-        const response: NF_Asset_Location__c = resp.records[0];
-        const mappedResponse = SFDC_AssetLocation.getMyUSSAssetLocationBySerialNumberFromSFDCAssetLocation(response);
-        return mappedResponse;
-      } else {
-        return null;
-      }
+      return resp?.records?.length ? SFDC_AssetLocation.getMyUSSAssetLocationBySerialNumberFromSFDCAssetLocation(resp.records[0]) : null;
     } catch (err) {
       this.logger.error(err);
       throw err;
     }
   }
+
   async getContractIdByName(contractName: string): Promise<Contract> {
     const contractIdResp = await this.sfdcBaseService.conn
       .sobject('Contract')
       .find({ Reference_Number__c: contractName });
 
-    // return contractIdResp.length > 0 ? contractIdResp[0] : '';
-    let contract = new Contract();
+    const contract = new Contract();
     if (contractIdResp.length) {
       contract.Id = contractIdResp[0].Id;
       contract.Ship_To__c = contractIdResp[0].Ship_To__c;
-
-      return contract;
     }
     return contract;
   }

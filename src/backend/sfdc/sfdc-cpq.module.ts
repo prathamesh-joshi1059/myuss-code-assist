@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
+import { CoreModule } from '../../core/core.module';
+import { CacheModule } from '@nestjs/cache-manager';
+
 import { SfdcCpqService } from './services/cpq/sfdc-cpq.service';
 import { SfdcMetadataService } from './services/sfdc-metadata/sfdc-metadata.service';
 import { SfdcUssPortalUserService } from './services/sfdc-uss-portal-user/sfdc-uss-portal-user.service';
 import { SfdcAccountService } from './services/sfdc-account/sfdc-account.service';
-import { CoreModule } from '../../core/core.module';
 import { SfdcDocumentService } from './services/sfdc-document/sfdc-document.service';
 import { SfdcExampleQuoteToOrderService } from './services/sfdc-example-quote-to-order/sfdc-example-quote-to-order.service';
 import { SfdcRFQService } from './services/sfdc-rfq/sfdc-rfq.service';
@@ -12,7 +14,6 @@ import { SfdcServiceableZipCodeService } from './services/sfdc-serviceable-zip-c
 import { SfdcQuoteService } from './services/sfdc-quote/sfdc-quote.service';
 import { SfdcContractService } from './services/sfdc-contract/sfdc-contract.service';
 import { SfdcProductService } from './services/sfdc-product/sfdc-product.service';
-import { CacheModule} from '@nestjs/cache-manager';
 import { SfdcCampaignService } from './services/sfdc-campaign/sfdc-campaign.service';
 import { SfdcLeadService } from './services/sfdc-lead/sfdc-lead.service';
 import { PaymentMethodsService } from '../../myuss/services/payment/payment-methods.service';
@@ -23,18 +24,12 @@ import { CPQPriceRulesEngineService } from './services/cpq/cpq-price-rules-engin
 import { SfdcAddressService } from './services/sfdc-address/sfdc-address.service';
 import { SfdcCaseService } from './services/sfdc-case/sfdc-case.service';
 import { SfdcProjectService } from './services/sfdc-project/sfdc-project.service';
-import { SfdcAccountContactRelationService } from './services/sfdc-account-contact-relation/sfdc-account-contact-relation/sfdc-account-contact-relation.service';
+import { SfdcAccountContactRelationService } from './services/sfdc-account-contact-relation/sfdc-account-contact-relation.service';
 
 @Module({
-  imports: [
-    CoreModule,
-    CacheModule.register()
-  ],
+  imports: [CoreModule, CacheModule.register()],
   providers: [
     SfdcCpqService,
-    // 2024-02-19 Adam: Since the base service is being imported into Core right now, it is not necessary to import it here
-    // Removing to avoid duplicate instantiations.  Once removed from Core, this will need to be re-added
-    // SfdcBaseService,
     SfdcMetadataService,
     SfdcUssPortalUserService,
     SfdcAccountService,
@@ -56,7 +51,7 @@ import { SfdcAccountContactRelationService } from './services/sfdc-account-conta
     CPQPriceRulesEngineService,
     SfdcCaseService,
     SfdcProjectService,
-    SfdcAccountContactRelationService
+    SfdcAccountContactRelationService,
   ],
   exports: [
     SfdcCpqService,
@@ -78,7 +73,7 @@ import { SfdcAccountContactRelationService } from './services/sfdc-account-conta
     SfdcPurchaseOrderService,
     SfdcCaseService,
     SfdcProjectService,
-    SfdcAccountContactRelationService
+    SfdcAccountContactRelationService,
   ],
   controllers: [],
 })

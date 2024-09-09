@@ -5,70 +5,63 @@ import { LoggerService } from '../../../../core/logger/logger.service';
 
 @Injectable()
 export class SfdcCampaignService {
-  constructor(private sfdcBaseService: SfdcBaseService,
-    private logger: LoggerService
-    ) {}
+  constructor(
+    private readonly sfdcBaseService: SfdcBaseService,
+    private readonly logger: LoggerService
+  ) {}
 
-  public async getCampaignByName(name: string): Promise<Campaign> {
+  public async getCampaignByName(name: string): Promise<Campaign | null> {
     const resp = await this.sfdcBaseService.getSObjectRecordsByField('Campaign', 'Name', name);
-    if (resp && resp.records && resp.records.length > 0) {
-      return resp.records[0] as Campaign;
-    } else {
-      return null;
-    }
+    return resp?.records?.[0] as Campaign | null;
   }
 
   public async getCampaignsByName(names: string[]): Promise<Campaign[]> {
     // make safe for SOQL
-    names = names.map((name) => name.replace(/'/g, "\\'"));
-    const query = `SELECT Id, Name, IsActive FROM Campaign WHERE Name IN ('${names.join("','")}')`;
+    const sanitizedNames = names.map((name) => name.replace(/'/g, "\\'"));
+    const query = `SELECT Id, Name, IsActive FROM Campaign WHERE Name IN ('${sanitizedNames.join("','")}')`;
     const resp = await this.sfdcBaseService.getQuery(query);
-    if (resp && resp.records && resp.records.length > 0) {
-      return resp.records as Campaign[];
-    } else {
-      return [];
-    }
+    return resp?.records as Campaign[] || [];
   }
 
   public async getCampaignMembersByCampaignId(campaignId: string): Promise<CampaignMember[]> {
-    const campaignMembers = await this.sfdcBaseService.conn.sobject('CampaignMember')
-    .select(`Id, CampaignId, LeadId, ContactId`)
-    .where({ CampaignId: campaignId })
-    .execute();
+    const campaignMembers = await this.sfdcBaseService.conn
+      .sobject('CampaignMember')
+      .select(`Id, CampaignId, LeadId, ContactId`)
+      .where({ CampaignId: campaignId })
+      .execute();
     return campaignMembers as CampaignMember[];
   }
 
-  public async deleteCampaignMemberByCampaignIdAndLeadId(campaignId: string, leadId: string): Promise<any> {
+  public async deleteCampaignMemberByCampaignIdAndLeadId(campaignId: string, leadId: string): Promise<string | any> {
     const cm = await this.getCampaignMemberByCampaignIdAndLeadId(campaignId, leadId);
     if (cm) {
-      const resp = await this.sfdcBaseService.deleteSObject('CampaignMember', cm.Id);
-      return resp;
-    } else {
-      return `No CampaignMember found for CampaignId: ${campaignId} and LeadId: ${leadId}`;
-    }
+      return await this.sfdcBaseService.deleteSObject('CampaignMember', cm.Id);
+    } 
+    return `No CampaignMember found for CampaignId: ${campaignId} and LeadId: ${leadId}`;
   }
 
   public async deleteCampaignMemberById(id: string): Promise<any> {
-    const resp = await this.sfdcBaseService.deleteSObject('CampaignMember', id);
-    return resp;
+    return await this.sfdcBaseService.deleteSObject('CampaignMember', id);
   }
 
-  public async getCampaignMemberByCampaignIdAndLeadId(campaignId: string, leadId: string): Promise<CampaignMember> {
-    const campaignMembers = await this.sfdcBaseService.conn.sobject('CampaignMember')
-    .select(`Id, CampaignId, LeadId, ContactId`)
-    .where({ CampaignId: campaignId, LeadId: leadId })
-    .limit(1)
-    .execute();
+  public async getCampaignMemberByCampaignIdAndLeadId(campaignId: string, leadId: string): Promise<CampaignMember | null> {
+    const campaignMembers = await this.sfdcBaseService.conn
+      .sobject('CampaignMember')
+      .select(`Id, CampaignId, LeadId, ContactId`)
+      .where({ CampaignId: campaignId, LeadId: leadId })
+      .limit(1)
+      .execute();
+      
     this.logger.info('campaignMembers', campaignMembers);
-    if (campaignMembers && campaignMembers.length > 0) {
-      const cm = new CampaignMember();
-      cm.Id = campaignMembers[0].Id;
-      cm.CampaignId = campaignMembers[0].CampaignId;
-      cm.LeadId = campaignMembers[0].LeadId;
-      cm.ContactId = campaignMembers[0].ContactId;
-      return cm;
-    } else {
-      return null;
+    
+    if (campaignMembers?.length) {
+      return {
+        Id: campaignMembers[0].Id,
+        CampaignId: campaignMembers[0].CampaignId,
+        LeadId: campaignMembers[0].LeadId,
+        ContactId: campaignMembers[0].ContactId,
+      } as CampaignMember;
     }
+    return null;
   }
 }

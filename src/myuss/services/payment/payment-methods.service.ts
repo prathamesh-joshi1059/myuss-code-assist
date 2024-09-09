@@ -8,178 +8,151 @@ import { SFDC_ContractMapper } from '../../../myuss/mappers/salesforce/contract.
 
 @Injectable()
 export class PaymentMethodsService {
-
   constructor(
     private stripeService: StripeService,
     private logger: LoggerService,
-    ) {}
+  ) {}
 
-  async getStripeCustomer(accountNumber: string) {
-    let getCustomerResObj = new ApiRespDTO<any>();
-    try{
-      const getCustomer = await this.stripeService.getCustomerByUSSAccountId(
-        accountNumber,
-      );
-        getCustomerResObj = {
-          success: true,
-          status: 1000,
-          message: 'Success',
-          data:getCustomer.data,
-        };
-        return getCustomerResObj;
-      }catch(error){
-        this.logger.error('getStripeCustomer', error.message);
-        getCustomerResObj = {
-          success: false,
-          status: 1008,
-          message:USS_CUSTOMERCARE_MESSAGE,
-          data: {},
-      };
-      return getCustomerResObj;
-    }
-  }
-
-  async createNewStripeCustomer(name: string, email: string, accountNumber: string) : Promise<ApiRespDTO<object>> {
-    let createCustomerResObj = new ApiRespDTO<object>();
-    try{
-      const newCustomer = { 
-        name: name, 
-        email: email,
-        ussAccountId: accountNumber
-      }     
-      const customer = await this.stripeService.createCustomer(newCustomer);
-      createCustomerResObj = {
+  async getStripeCustomer(accountNumber: string): Promise<ApiRespDTO<any>> {
+    const getCustomerResObj = new ApiRespDTO<any>();
+    try {
+      const getCustomer = await this.stripeService.getCustomerByUSSAccountId(accountNumber);
+      return {
+        ...getCustomerResObj,
         success: true,
         status: 1000,
         message: 'Success',
-        data: { customerId: customer.id, exist: true },
-      }
-       return createCustomerResObj;
-    }
-    catch(error){
-      this.logger.error('createStripeCustomer', error.message);
-      createCustomerResObj = {
+        data: getCustomer.data,
+      };
+    } catch (error) {
+      this.logger.error('getStripeCustomer', error.message);
+      return {
+        ...getCustomerResObj,
         success: false,
         status: 1008,
         message: USS_CUSTOMERCARE_MESSAGE,
         data: {},
       };
-      return createCustomerResObj;
-    }     
+    }
   }
- 
+
+  async createNewStripeCustomer(name: string, email: string, accountNumber: string): Promise<ApiRespDTO<object>> {
+    const createCustomerResObj = new ApiRespDTO<object>();
+    try {
+      const newCustomer = {
+        name,
+        email,
+        ussAccountId: accountNumber,
+      };
+      const customer = await this.stripeService.createCustomer(newCustomer);
+      return {
+        ...createCustomerResObj,
+        success: true,
+        status: 1000,
+        message: 'Success',
+        data: { customerId: customer.id, exist: true },
+      };
+    } catch (error) {
+      this.logger.error('createStripeCustomer', error.message);
+      return {
+        ...createCustomerResObj,
+        success: false,
+        status: 1008,
+        message: USS_CUSTOMERCARE_MESSAGE,
+        data: {},
+      };
+    }
+  }
+
   async getPaymentMethods(stripeCustomerId: string): Promise<ApiRespDTO<Object>> {
-    let getPaymentMethodListObj = new ApiRespDTO<Object>();
-    try{
-      const paymentMethods = await this.stripeService.getPaymentMethods(
-        stripeCustomerId,
-      );
-      let paymentMethodList:GetPaymentMethodsResObj[] = paymentMethods.data.map((paymentMethod) => {
-        let isExpired = true;
-        if(paymentMethod.card){
-          //check card is expired
-          if(paymentMethod.card.exp_year > new Date().getFullYear() ){
-            isExpired = false;
-          }else{
-            if(paymentMethod.card.exp_year === new Date().getFullYear() && paymentMethod.card.exp_month > (new Date().getMonth()+1) ){
-              isExpired = false;
+    const getPaymentMethodListObj = new ApiRespDTO<Object>();
+    try {
+      const paymentMethods = await this.stripeService.getPaymentMethods(stripeCustomerId);
+      const paymentMethodList: GetPaymentMethodsResObj[] = paymentMethods.data.map((paymentMethod) => {
+        const isExpired = paymentMethod.card
+          ? !(paymentMethod.card.exp_year < new Date().getFullYear() || 
+            (paymentMethod.card.exp_year === new Date().getFullYear() && paymentMethod.card.exp_month <= new Date().getMonth() + 1))
+          : true;
+
+        return paymentMethod.card
+          ? {
+              paymentMethodId: paymentMethod.id,
+              type: paymentMethod.type,
+              card: SFDC_ContractMapper.getCardDetails(paymentMethod, isExpired),
             }
-          }
-          let paymentMethodObj : GetPaymentMethodsResObj= {
-            paymentMethodId: paymentMethod.id,
-            type: paymentMethod.type,
-            card : SFDC_ContractMapper.getCardDetails(paymentMethod,isExpired),
-          };
-          return paymentMethodObj;
-        }else{
-          let paymentMethodObj : GetPaymentMethodsResObj= {
-            paymentMethodId: paymentMethod.id,
-            type: paymentMethod.type,
-            bank : SFDC_ContractMapper.getBankDetails(paymentMethod)
-          }
-          return paymentMethodObj;
-        }
+          : {
+              paymentMethodId: paymentMethod.id,
+              type: paymentMethod.type,
+              bank: SFDC_ContractMapper.getBankDetails(paymentMethod),
+            };
       });
-      getPaymentMethodListObj = {
+      
+      return {
+        ...getPaymentMethodListObj,
         success: true,
         status: 1000,
         message: 'Success',
         data: paymentMethodList,
       };
-      return getPaymentMethodListObj;
-    }catch(error){
+    } catch (error) {
       this.logger.error('getPaymentMethods', error.message);
-      getPaymentMethodListObj = {
+      return {
+        ...getPaymentMethodListObj,
         success: false,
         status: 1008,
         message: USS_CUSTOMERCARE_MESSAGE,
         data: [],
       };
-      return getPaymentMethodListObj;
     }
   }
-  async getPaymentDetails( paymentMethodId: string): Promise<ApiRespDTO<any>> {
-    let getPaymentDetailsObj = new ApiRespDTO<any>();
-    try{
-      const paymentMethodsDetail = await this.stripeService.getPaymentDetails(
-        paymentMethodId
-      );
 
-      if (paymentMethodsDetail.card) {
-        let card = SFDC_ContractMapper.getCardDetails(paymentMethodsDetail, false)
-        getPaymentDetailsObj = {
-          success: true,
-          status: 1000,
-          message: 'Success',
-          data: {
-            cardDetails: card,
-          },
-        };
-        return getPaymentDetailsObj;
-      } else {
-        let bankDetail = SFDC_ContractMapper.getBankDetails(paymentMethodsDetail)
-        getPaymentDetailsObj = {
-          success: true,
-          status: 1000,
-          message: 'Success',
-          data: {
-            bankDetails: bankDetail,
-          },
-        };
-        return getPaymentDetailsObj;
-      }
-    }catch(error){
+  async getPaymentDetails(paymentMethodId: string): Promise<ApiRespDTO<any>> {
+    const getPaymentDetailsObj = new ApiRespDTO<any>();
+    try {
+      const paymentMethodsDetail = await this.stripeService.getPaymentDetails(paymentMethodId);
+      
+      return {
+        ...getPaymentDetailsObj,
+        success: true,
+        status: 1000,
+        message: 'Success',
+        data: paymentMethodsDetail.card
+          ? { cardDetails: SFDC_ContractMapper.getCardDetails(paymentMethodsDetail, false) }
+          : { bankDetails: SFDC_ContractMapper.getBankDetails(paymentMethodsDetail) },
+      };
+    } catch (error) {
       this.logger.error('getPaymentDetails', error.message);
-      getPaymentDetailsObj = {
+      return {
+        ...getPaymentDetailsObj,
         success: false,
         status: 1008,
         message: USS_CUSTOMERCARE_MESSAGE,
         data: {},
       };
-      return getPaymentDetailsObj;
     }
   }
+
   async createSetupIntent(customerId: string): Promise<ApiRespDTO<any>> {
-    let setupIntentRes = new ApiRespDTO<any>();
-    try{
+    const setupIntentRes = new ApiRespDTO<any>();
+    try {
       const setupIntent = await this.stripeService.createSetupIntent(customerId);
       this.logger.info(setupIntent);
-      setupIntentRes = {
+      return {
+        ...setupIntentRes,
         success: true,
         status: 1000,
         message: 'Success',
         data: setupIntent,
       };
-      return setupIntentRes;
-    }catch(error){
+    } catch (error) {
       this.logger.error('createSetupIntent', error.message);
-      setupIntentRes = {
+      return {
+        ...setupIntentRes,
         success: false,
         status: 1008,
         message: USS_CUSTOMERCARE_MESSAGE,
         data: {},
       };
-      return setupIntentRes;
     }
   }
 }

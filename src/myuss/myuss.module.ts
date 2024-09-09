@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { UserController } from './controllers/user/user.controller';
-import { AccountsController } from './controllers/accounts/accounts.controller'
+import { AccountsController } from './controllers/accounts/accounts.controller';
 import { CoreModule } from '../core/core.module';
 import { Auth0Module } from '../backend/auth0/auth0.module';
 import { ZipCodeController } from './controllers/zipcode/zipcode.controller';
@@ -38,19 +38,19 @@ import { ProductsControllerV2 } from './v2/controllers/product/product.controlle
 
 @Module({
   imports: [
-    CoreModule, 
-    Auth0Module, 
-    SfdcCpqModule, 
+    CoreModule,
+    Auth0Module,
+    SfdcCpqModule,
     StripeModule,
     AvalaraModule,
-    GoogleModule
+    GoogleModule,
   ],
   providers: [
-    UserService, 
+    UserService,
     AccountsService,
     AddressService,
     QuoteService,
-    NotificationService, 
+    NotificationService,
     ZipcodeService,
     ContractService,
     PaymentMethodsService,
@@ -60,14 +60,14 @@ import { ProductsControllerV2 } from './v2/controllers/product/product.controlle
     ProjectService,
     AccountsServiceV2,
     ProductsServiceV2,
-    QuoteServiceV2
+    QuoteServiceV2,
   ],
   controllers: [
     UserController,
     AccountsController,
     AddressController,
-    ZipCodeController, 
-    NotificationController, 
+    ZipCodeController,
+    NotificationController,
     QuoteController,
     ContractController,
     PaymentMethodsController,
@@ -77,10 +77,8 @@ import { ProductsControllerV2 } from './v2/controllers/product/product.controlle
     ProjectController,
     AccountsControllerV2,
     ProductsControllerV2,
-    QuoteV2Controller
+    QuoteV2Controller,
   ],
-  exports: [
-    UserService,
-    ContractService  ]
+  exports: [UserService, ContractService],
 })
 export class MyUSSModule {}

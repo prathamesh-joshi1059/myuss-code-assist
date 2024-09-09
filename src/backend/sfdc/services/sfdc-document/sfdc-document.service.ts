@@ -7,10 +7,10 @@ export class SfdcDocumentService {
   constructor(
     private sfdcBaseService: SfdcBaseService,
     private logger: LoggerService,
-    ) {}
+  ) {}
 
-  async getDocument(id: string) {
-    const doc = this.sfdcBaseService.getSObjectById('Document', id);
+  async getDocument(id: string): Promise<any> {
+    const doc = await this.sfdcBaseService.getSObjectById('Document', id);
     this.logger.info(doc);
     return doc;
   }

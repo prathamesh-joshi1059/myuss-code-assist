@@ -7,24 +7,26 @@ import { CacheService } from "../cache/cache.service";
 
 @Injectable()
 export class TrackUserActionService {
-   
     constructor(
         private sfdcPortalActionService: SfdcPortalActionService,
         private cacheService: CacheService
-        ) {}
+    ) {}
 
-    public async setPortalActions(accountId:string,auth0Id:string,screenName:string,userAction:string,quoteId:string,ussOrderId:string){
-
+    public async setPortalActions(
+        accountId: string,
+        auth0Id: string,
+        screenName: string,
+        userAction: string,
+        quoteId: string,
+        ussOrderId: string
+    ): Promise<void> {
+        let userDetailsModel: string | null = await this.cacheService.get<string>('user-' + auth0Id);
         
-        let userDetailsModel: any = await this.cacheService.get<string>(
-            'user-' + auth0Id
-          );
-          if (!userDetailsModel) {
-            userDetailsModel = this.sfdcPortalActionService.fetchContactAndUssPortalUser(auth0Id,accountId);
+        if (!userDetailsModel) {
+            userDetailsModel = await this.sfdcPortalActionService.fetchContactAndUssPortalUser(auth0Id, accountId);
         } else {
             userDetailsModel = JSON.parse(userDetailsModel);
-          }
-
+        }
 
         const portalActionModel = new PortalActionModel();
         portalActionModel.accountId = userDetailsModel.accountId;
@@ -34,8 +36,8 @@ export class TrackUserActionService {
         portalActionModel.userAction = userAction;
         portalActionModel.quoteId = quoteId;
         portalActionModel.ussOrderId = ussOrderId;
-        let portalAction = SFDC_UserEventMapper.getSFDCPortalActionsFromMyUSSPortalActions(portalActionModel);
+
+        const portalAction = SFDC_UserEventMapper.getSFDCPortalActionsFromMyUSSPortalActions(portalActionModel);
         this.sfdcPortalActionService.setPortalActions(portalAction);
     }
-
 }

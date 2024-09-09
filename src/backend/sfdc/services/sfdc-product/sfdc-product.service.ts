@@ -9,7 +9,7 @@ export class SfdcProductService {
   constructor(private logger: LoggerService, private sfdcBaseService: SfdcBaseService) {}
 
   async getProductList(): Promise<Product2[]> {
-    const soql = `SELECT Id, ProductCode, Name, ProductType__c, Line_Type__c, SBQQ__SubscriptionType__c, Requires_Parent_Asset__c, AVA_SFCPQ__TaxCode__c, ProductCategory__c, Asset_Summary__c, Description2__c,Number_of_Services__c,
+    const soql = `SELECT Id, ProductCode, Name, ProductType__c, Line_Type__c, SBQQ__SubscriptionType__c, Requires_Parent_Asset__c, AVA_SFCPQ__TaxCode__c, ProductCategory__c, Asset_Summary__c, Description2__c, Number_of_Services__c,
                 (SELECT Id, SBQQ__OptionalSKU__c, SBQQ__OptionalSKU__r.Id, SBQQ__OptionalSKU__r.ProductCode, SBQQ__OptionalSKU__r.Name, 
                   SBQQ__OptionalSKU__r.ProductType__c, AdditionalOptions__c, SBQQ__Type__c, SBQQ__Feature__c 
                 FROM SBQQ__Options__r 
@@ -38,6 +38,7 @@ export class SfdcProductService {
       product.Asset_Summary__c = record.Asset_Summary__c;
       product.Description2__c = record.Description2__c;
       product.Number_of_Services__c = record.Number_of_Services__c;
+
       product.SBQQ__Options__r = record.SBQQ__Options__r?.records.map((option) => {
         const opt = new SBQQ__ProductOption__c();
         opt.Id = option.Id;
@@ -52,13 +53,16 @@ export class SfdcProductService {
         opt.AdditionalOptions__c = option.AdditionalOptions__c;
         return opt;
       });
+      
       product.PricebookEntries = record.PricebookEntries?.records.map((entry) => {
         const e = new PricebookEntry();
         e.Id = entry.Id;
         return e;
       });
+      
       return product;
     });
+    
     // this.logger.info(products);
     return products;
   }
@@ -68,12 +72,14 @@ export class SfdcProductService {
     if (resp.length === 0) {
       throw new Error('No standard pricebook found');
     }
+    
     const pricebook = new Pricebook2();
     pricebook.Id = resp[0].Id;
     pricebook.Name = resp[0].Name;
     pricebook.IsActive = resp[0].IsActive;
     pricebook.IsStandard = resp[0].IsStandard;
     pricebook.Description = resp[0].Description;
+    
     return pricebook;
   }
 }

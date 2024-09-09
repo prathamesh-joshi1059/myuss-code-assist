@@ -6,17 +6,20 @@ import { ServiceTerritory } from '../../model/ServiceTerritory';
 export class SfdcServiceTerritoryService {
   constructor(private sfdcBaseService: SfdcBaseService) {}
 
-  async getBranchLevelTerritories(): Promise<ServiceTerritory[]> {
-    const territories = await this.sfdcBaseService.conn.sobject('ServiceTerritory')
-    .select('Id, Service_Branch_Id__c, Name, Area_Name__c, Sales_Area__c')
-    .where({
-      IsActive: true,
-      FSL_Serviceable__c: true
-    })
-    .execute();
+  async getBranchLevelTerritories(): Promise<ServiceTerritory[] | null> {
+    const territories = await this.sfdcBaseService.conn
+      .sobject('ServiceTerritory')
+      .select('Id, Service_Branch_Id__c, Name, Area_Name__c, Sales_Area__c')
+      .where({
+        IsActive: true,
+        FSL_Serviceable__c: true,
+      })
+      .execute();
+
     if (territories?.length === 0) {
       return null;
     }
+
     return territories.map((territory) => {
       const t = new ServiceTerritory();
       t.Id = territory.Id;
