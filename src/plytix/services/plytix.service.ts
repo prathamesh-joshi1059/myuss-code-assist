@@ -35,31 +35,33 @@ export class PlytixService {
     try {
       const { processed_products, feed_url, channel_processing_status } = plytixWebhookCallReqDto;
       const domain = new URL(feed_url).hostname;
+
       if (!this.isDomainWhitelisted(domain)) {
         this.logger.error(`Error in plytixWebhookCall function: Domain for feed_url is not whitelisted: ${domain}`);
         return;
       }
+
       if (this.isRateLimited(feed_url)) {
         this.logger.error(`Error in plytixWebhookCall function: Rate limit exceeded for plytixWebhookCall`);
         return;
       }
+
       if (channel_processing_status !== 'success' || processed_products <= 0) {
         this.logger.error(
           `Error in plytixWebhookCall function: CSV file not processed. processed_products: ${processed_products}, channel_processing_status: ${channel_processing_status}`,
         );
         return;
       }
+
       const response = await axios.get(feed_url);
-      const csvData = response.data;
+      const csvData: string = response.data;
       const timestamp = new Date().toISOString();
       const filename = `plytix-feed-${timestamp}.csv`;
       const validationPassed = await this.validateFeedData(csvData);
+
       if (validationPassed) {
         const file = this.storage.bucket(this.bucketName).file(filename);
-        await file.save(csvData, {
-          contentType: 'text/csv',
-          resumable: false,
-        });
+        await file.save(csvData, { contentType: 'text/csv', resumable: false });
         this.logger.log(`In plytixWebhookCall function: csv file saved: ${filename}`);
       }
     } catch (error) {
@@ -83,9 +85,11 @@ export class PlytixService {
     if (!this.limits[limitKey]) {
       this.limits[limitKey] = { count: 0, lastReset: today };
     }
+
     if (this.limits[limitKey].count >= 5) {
       return true;
     }
+
     this.limits[limitKey].count++;
     return false;
   }
@@ -93,16 +97,20 @@ export class PlytixService {
   async validateFeedData(csvData: string): Promise<boolean> {
     try {
       const jsonData = await csvtojson().fromString(csvData);
+
       if (!jsonData.length) {
         throw new Error('No data found in the CSV file.');
       }
+
       if (jsonData.length === 1 && Object.keys(jsonData[0]).every((key) => key.trim() === '')) {
         throw new Error('No data found in the CSV file, only headers.');
       }
+
       const itemsWithoutSKU = jsonData.filter((item) => !item.SKU);
       if (itemsWithoutSKU.length) {
         throw new Error(`Some products are missing SKU (${itemsWithoutSKU.length} products).`);
       }
+
       for (const item of jsonData) {
         const dto = new ValidateFeedDataDto();
         Object.assign(dto, item);
@@ -111,6 +119,7 @@ export class PlytixService {
           throw new Error(`Schema validation failed: ${errors.length} errors found.`);
         }
       }
+
       return true;
     } catch (error) {
       throw error;
@@ -147,13 +156,15 @@ export class PlytixService {
     try {
       const [fileBuffer] = await this.storage.bucket(this.bucketName).file(fileName).download();
       const fileContents = fileBuffer.toString('utf8');
-      const jsonData = await csvtojson().fromString(fileContents);
       await this.validateFeedData(fileContents);
-      const documents: { [id: string]: PlytixProductModel } = {};
+      const jsonData = await csvtojson().fromString(fileContents);
+      const documents: { [sku: string]: PlytixProductModel } = {};
+
       for (const record of jsonData) {
         const modifiedJson = await this.removeSpacesFromKeys(record);
         const mappedData = PlytixProductMapper.mapToPlytixProduct(modifiedJson);
         const plainMappedData = this.convertToPlainObject(mappedData) as PlytixProductModel;
+
         if ('sku' in plainMappedData) {
           documents[plainMappedData.sku] = plainMappedData;
         } else {
@@ -171,8 +182,9 @@ export class PlytixService {
       throw error;
     }
   }
-  private async removeSpacesFromKeys(obj: Record<string, any>): Promise<Record<string, any>> {
-    const newJson: Record<string, any> = {};
+
+  private async removeSpacesFromKeys(obj: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const newJson: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj)) {
       const newKey = key.replace(/\s+/g, '');
       newJson[newKey] = value;
@@ -180,9 +192,9 @@ export class PlytixService {
     return newJson;
   }
 
-  private convertToPlainObject(instance: any): object {
-    if (instance && typeof instance.toJSON === 'function') {
-      return instance.toJSON();
+  private convertToPlainObject(instance: unknown): object {
+    if (instance && typeof (instance as any).toJSON === 'function') {
+      return (instance as any).toJSON();
     }
     return { ...instance };
   }
